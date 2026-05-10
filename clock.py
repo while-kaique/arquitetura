@@ -1,0 +1,19 @@
+# Modulo de Clock - Executa ciclos da CPU
+ticks = 0
+
+def start(devs, auto=True):
+    global ticks
+    ticks = 0
+
+    while True:
+        if not auto:
+            input()
+        success = True
+        for dev in devs:
+            success = success and dev.step()
+        if success:
+            ticks += 1
+        else:
+            break
+
+    return ticks
