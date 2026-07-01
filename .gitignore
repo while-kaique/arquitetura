@@ -5,3 +5,6 @@ __pycache__/
 # Cloudflare Worker (arq-worker)
 arq-worker/node_modules/
 arq-worker/.wrangler/
+arq-worker/_served/
+*.bin
+*.img
