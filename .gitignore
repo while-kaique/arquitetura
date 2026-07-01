@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.pyc
+
+# Cloudflare Worker (arq-worker)
+arq-worker/node_modules/
+arq-worker/.wrangler/
