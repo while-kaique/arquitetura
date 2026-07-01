@@ -2,6 +2,7 @@
 // Edite os .asm em asm/ ou este worker.template.js e rode: node build_worker.js
 // Rotas:
 //   /              -> pagina indice (guia + lista de questoes cadastradas)
+//   /help          -> pagina de ajuda (explica tudo que o site faz)
 //   /api/arq/{q}   -> versao ENXUTA em texto puro (KV faz fallback p/ questoes da turma)
 //   /req_full/{q}  -> versao EXTENSA em texto puro
 //   /dev           -> "terminal" (cmd falso) vazio, so o prompt piscando
@@ -88,7 +89,8 @@ async function index(kv) {
 
     `<h1>Códigos de prova — Arquitetura (Assembly x86)</h1>` +
     `<p>Programas de boot que leem um número pelo teclado e respondem na tela. ` +
-    `Escolha <b>um</b> dos dois caminhos abaixo e siga na ordem: <b>instalar → configurar → pegar e rodar o código</b>.</p>` +
+    `Escolha <b>um</b> dos dois caminhos abaixo e siga na ordem: <b>instalar → configurar → pegar e rodar o código</b>. ` +
+    `Novo aqui? Veja a <a href="/help">página de ajuda</a>.</p>` +
     `<p class=rec>Os códigos já vêm na versão robusta (montam a pilha e ligam a interrupção do teclado), ` +
     `então rodam nos dois. <b>Recomendado: VirtualBox</b> — é o mais provável no laboratório. ` +
     `QEMU é o mais simples de rodar, se estiver disponível.</p>` +
@@ -360,6 +362,73 @@ async function handleDev(request, parts, kv) {
   return new Response(formPage(n, {}), { headers: HTM });
 }
 
+// ============================ pagina /help ============================
+// IMPORTANTE: mantenha esta pagina em dia. Toda vez que mudar rota ou fluxo do
+// site, atualize help() (regra registrada no CLAUDE.md).
+function help() {
+  return `<!doctype html><meta charset=utf-8><title>Ajuda — Códigos de prova</title>` +
+    `<style>body{font-family:monospace;max-width:820px;margin:40px auto;padding:0 16px;line-height:1.6;color:#111}` +
+    `h1{font-size:1.5em}h2{font-size:1.15em;margin-top:1.8em;border-bottom:2px solid #333;padding-bottom:4px}` +
+    `a{color:#06c}code{background:#f4f4f4;padding:1px 5px;border-radius:3px}` +
+    `table{border-collapse:collapse;width:100%;margin:10px 0}td,th{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}` +
+    `ol,ul{margin:8px 0 8px 22px}li{margin:4px 0}` +
+    `.aviso{background:#fffae6;border:1px solid #f0e0a0;padding:8px 12px;border-radius:4px}` +
+    `.lead{background:#eef4ff;border:1px solid #cdddf7;padding:8px 12px;border-radius:4px}</style>` +
+
+    `<h1>Ajuda — como usar o site</h1>` +
+    `<p class=lead>Este site guarda <b>códigos de prova em Assembly x86</b> (programas de boot que ` +
+    `leem um número pelo teclado e respondem na tela). Serve pra <b>ver</b> um código, <b>copiar</b> ` +
+    `e <b>cadastrar</b> códigos novos. O passo a passo de instalar (NASM + VirtualBox/QEMU) e rodar ` +
+    `está na <a href="/">página inicial</a>.</p>` +
+
+    `<h2>Páginas principais</h2>` +
+    `<table>` +
+    `<tr><th>Endereço</th><th>O que é</th></tr>` +
+    `<tr><td><a href="/">/</a></td><td>Página inicial: guia de instalação (VirtualBox e QEMU), ` +
+    `lista de <b>questões cadastradas</b> e as tabelas de links.</td></tr>` +
+    `<tr><td><a href="/help">/help</a></td><td>Esta ajuda.</td></tr>` +
+    `<tr><td><a href="/dev">/dev</a></td><td>Uma tela que <b>imita o Prompt de Comando</b> (cmd), vazia — só o cursor piscando.</td></tr>` +
+    `<tr><td><code>/dev/{id}</code></td><td>Abre a questão <code>{id}</code> nessa tela de cmd. ` +
+    `Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
+    `<tr><td><code>/api/arq/{id}</code></td><td>O código em <b>texto puro</b> (versão enxuta), sem o visual de cmd.</td></tr>` +
+    `<tr><td><code>/req_full/{id}</code></td><td>Texto puro da versão <b>extensa</b>/comentada (quando existe).</td></tr>` +
+    `</table>` +
+    `<p>Exemplos prontos: <a href="/dev/50">/dev/50</a> (bissexto), <a href="/dev/54">/dev/54</a> ` +
+    `(triangular), <a href="/dev/55">/dev/55</a> (perfeito).</p>` +
+
+    `<h2>Como ver uma questão</h2>` +
+    `<ol>` +
+    `<li>Na <a href="/">página inicial</a>, olhe a lista <b>Questões cadastradas</b> e clique no link (ex.: <code>/dev/50</code>).</li>` +
+    `<li>Abre uma tela <b>igual ao Prompt de Comando</b> com o código. Aperte <b>Ctrl+A</b> e <b>Ctrl+C</b>: ` +
+    `copia <b>só o código</b> (o cabeçalho e o prompt não entram na seleção).</li>` +
+    `<li>Cole no seu editor, salve como <code>prova.asm</code> e monte/rode (guia completo na página inicial).</li>` +
+    `</ol>` +
+    `<p>Prefere sem o visual de cmd? Use <code>/api/arq/{id}</code> pra pegar o texto puro.</p>` +
+
+    `<h2>Como cadastrar uma questão nova</h2>` +
+    `<ol>` +
+    `<li>Acesse <code>/dev/</code> seguido de um <b>id ainda não usado</b> — ex.: <code>/dev/60</code> ou ` +
+    `<code>/dev/fibonacci</code>. (letras, números, <code>-</code> e <code>_</code>, até 40 caracteres.)</li>` +
+    `<li>Como não existe ainda, aparece um <b>formulário</b>. Cole o código Assembly, dê um nome (opcional) ` +
+    `e clique em <b>Salvar</b>.</li>` +
+    `<li>Pronto: a questão passa a abrir em <code>/dev/SEU-ID</code> <b>pra todo mundo</b> e entra na lista ` +
+    `da página inicial.</li>` +
+    `</ol>` +
+    `<p class=aviso><b>Só dá pra cadastrar uma vez.</b> Depois de salvo, o id fica <b>travado</b> — ninguém ` +
+    `sobrescreve (as questões base <code>50</code>/<code>54</code>/<code>55</code> também são protegidas assim).</p>` +
+    `<p><b>Regras do código:</b> deve ser um boot sector completo — começa com <code>org 0x7c00</code> e ` +
+    `termina com <code>times 510-($-$$) db 0</code> / <code>db 0x55</code> / <code>db 0xaa</code>. ` +
+    `Tamanho máximo 100 KB. Se faltar a assinatura de boot, o site <b>avisa</b> e pede confirmação antes de salvar.</p>` +
+
+    `<h2>Bom saber</h2>` +
+    `<ul>` +
+    `<li>O modo terminal é <b>só visual</b> — não executa nada. Serve pra ler e copiar o código com discrição.</li>` +
+    `<li>Os programas funcionam com números até <b>65535</b> (aritmética de 16 bits).</li>` +
+    `<li>Problemas ao montar/rodar? A página inicial tem uma tabela de <b>problemas comuns</b>.</li>` +
+    `</ul>` +
+    `<p><a href="/">← voltar para a página inicial</a></p>`;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -367,6 +436,9 @@ export default {
     const kv = env && env.KV ? env.KV : null;
 
     if (parts.length === 0) return new Response(await index(kv), { headers: HTM });
+
+    // /help -> pagina de ajuda
+    if (parts[0] === "help") return new Response(help(), { headers: HTM });
 
     // /dev, /dev/{q}, /dev/{q}/full, POST /dev/{q}
     if (parts[0] === "dev") return await handleDev(request, parts, kv);

@@ -63,6 +63,14 @@ for (const q of ["50", "54", "55"]) {
 ok((await get("/api/arq/99")).status === 404, "questao inexistente -> 404");
 ok((await get("/xyz")).status === 404, "rota invalida -> 404");
 
+// 3b) pagina de ajuda /help
+const h = await get("/help");
+ok(h.status === 200, "GET /help -> 200");
+ok(h.body.includes("como usar o site"), "/help tem titulo de ajuda");
+ok(h.body.includes("Como ver uma questão") && h.body.includes("Como cadastrar uma questão"), "/help explica ver + cadastrar");
+ok(h.body.includes('href="/dev/50"') && h.body.includes("/api/arq/{id}") && h.body.includes('href="/help"'), "/help linka as paginas principais");
+ok(idx.body.includes('href="/help"'), "indice linka o /help");
+
 // 4) modo terminal /dev (cmd falso) das questoes assadas
 const dev0 = await get("/dev");
 ok(dev0.status === 200 && dev0.body.includes("Microsoft Windows") && dev0.body.includes('class="caret"'), "/dev tem cmd + cursor");
