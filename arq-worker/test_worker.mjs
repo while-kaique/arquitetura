@@ -41,5 +41,22 @@ for (const q of ["50", "54", "55"]) {
 ok((await get("/api/arq/99")).status === 404, "questao inexistente -> 404");
 ok((await get("/xyz")).status === 404, "rota invalida -> 404");
 
+// 4) modo terminal /dev (cmd falso)
+const dev0 = await get("/dev");
+ok(dev0.status === 200, "GET /dev -> 200");
+ok(dev0.body.includes("Microsoft Windows"), "/dev tem cabecalho do cmd");
+ok(dev0.body.includes('class="caret"'), "/dev tem cursor piscando");
+ok(!dev0.body.includes("org 0x7c00"), "/dev sem q nao mostra codigo");
+ok(idx.body.includes('href="/dev/50"'), "indice linka o terminal /dev/50");
+for (const q of ["50", "54", "55"]) {
+  const d = await get("/dev/" + q);
+  ok(d.status === 200 && d.body.includes("copy con prova.asm"), `/dev/${q} parece um cmd`);
+  ok(d.body.includes("org 0x7c00") && d.body.includes("db 0xaa"), `/dev/${q} tem o codigo`);
+  ok(d.body.includes('class="code"'), `/dev/${q} marca a regiao copiavel`);
+  ok(d.body.includes("-&gt;"), `/dev/${q} escapa o '->' dos comentarios (HTML valido)`);
+}
+ok((await get("/dev/50/full")).body.includes("pergunta o ano"), "/dev/50/full = versao extensa");
+ok(!(await get("/dev/99")).body.includes("org 0x7c00"), "/dev/{q inexistente} nao mostra codigo");
+
 console.log(fails === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${fails} TESTE(S) FALHARAM`);
 process.exit(fails === 0 ? 0 : 1);

@@ -127,13 +127,28 @@ com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
 | `/` | pagina indice (guia VirtualBox + QEMU) |
 | `/api/arq/{q}` | versao **enxuta** (recomendada) |
 | `/req_full/{q}` | versao **extensa** |
+| `/dev` | **terminal falso** (cmd.exe) vazio: so o prompt com cursor piscando |
+| `/dev/{q}` | terminal falso com a versao **enxuta** "colada" (parece cmd) |
+| `/dev/{q}/full` | terminal falso com a versao **extensa** |
 
 `q` = `50` (bissexto), `54` (triangular), `55` (perfeito).
 
+**Modo terminal (`/dev`) — disfarce visual.** Pagina HTML que IMITA o Prompt de
+Comando do Windows (fundo `#0c0c0c`, fonte Consolas 16px cor `#cccccc`, cabecalho
+`Microsoft Windows [versao ...]`, prompt `C:\Users\User>copy con prova.asm` e um
+**cursor bloco piscando** colado no fim do codigo). **Nao e um terminal de
+verdade** — nao roda nem le pastas; e texto fixo com cara de cmd, pra abrir em
+tela cheia (F11) e copiar com discricao. So a regiao `<span class="code">` e
+selecionavel; o cabecalho/prompt tem `user-select:none`, entao **Ctrl+A -> Ctrl+C
+copia exatamente o assembly** (sem o cabecalho). O indice tem uma coluna
+**Terminal** linkando `/dev/{q}` e `/dev/{q}/full`. A funcao `dev()` normaliza
+CRLF->LF e escapa `& < >` (o assembly usa `->` nos comentarios) via `esc()`.
+
 **Estrutura (o worker.js e GERADO — nao editar na mao):**
 - `asm/{q}_{curto|full}.asm` — as **fontes** de verdade dos 6 programas.
-- `worker.template.js` — roteamento + a pagina `index()` (guia VBox/QEMU), com
-  placeholders `__CODE_PLACEHOLDER__` / `__NOMES_PLACEHOLDER__`.
+- `worker.template.js` — roteamento + a pagina `index()` (guia VBox/QEMU) + o
+  `dev()`/`esc()` (terminal falso), com placeholders `__CODE_PLACEHOLDER__` /
+  `__NOMES_PLACEHOLDER__`.
 - `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.
   Rodar: `node build_worker.js`.
 - `test_worker.mjs` — testa rotas e confere que o servido == os `.asm`.
