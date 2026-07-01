@@ -1,0 +1,6 @@
+name = "arq-prova"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# Habilita a URL publica *.workers.dev
+workers_dev = true
