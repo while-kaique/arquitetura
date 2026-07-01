@@ -1,19 +1,33 @@
 // GERADO por build_worker.js — NAO editar src/worker.js na mao.
 // Edite os .asm em asm/ ou este worker.template.js e rode: node build_worker.js
 // Rotas:
-//   /              -> pagina indice (guia VirtualBox + QEMU)
-//   /api/arq/{q}   -> versao ENXUTA  (recomendada)
-//   /req_full/{q}  -> versao EXTENSA
+//   /              -> pagina indice (guia + lista de questoes cadastradas)
+//   /api/arq/{q}   -> versao ENXUTA em texto puro (KV faz fallback p/ questoes da turma)
+//   /req_full/{q}  -> versao EXTENSA em texto puro
 //   /dev           -> "terminal" (cmd falso) vazio, so o prompt piscando
-//   /dev/{q}       -> terminal com a versao ENXUTA colada (parece cmd)
-//   /dev/{q}/full  -> terminal com a versao EXTENSA colada
-// q em: 50 (bissexto), 54 (triangular), 55 (perfeito)
+//   /dev/{q}       -> se {q} existe (assada 50/54/55 ou cadastrada no KV): terminal com o codigo
+//                     se {q} NAO existe: formulario "cadastrar" (cola o codigo)
+//   /dev/{q}/full  -> terminal com a versao EXTENSA (so p/ as assadas)
+//   POST /dev/{q}  -> salva o codigo colado no KV (WRITE-ONCE: se ja existe, ignora e mostra o que ja tem)
+// q assadas: 50 (bissexto), 54 (triangular), 55 (perfeito). Qualquer outro id pode ser cadastrado.
 const CODE = __CODE_PLACEHOLDER__;
 const NOMES = __NOMES_PLACEHOLDER__;
 
 const TXT = { "content-type": "text/plain; charset=utf-8" };
 const HTM = { "content-type": "text/html; charset=utf-8" };
 
+// id de questao aceito no cadastro: letras, numeros, - e _ (ate 40)
+const ID_OK = /^[A-Za-z0-9_-]{1,40}$/;
+const MAX_BYTES = 100 * 1024;      // teto do codigo colado
+const KV_PREFIX = "q:";
+
+// escapa os caracteres que quebrariam o HTML (o assembly usa "->" nos comentarios,
+// e o codigo colado pode conter "<", ">", "&", ate "</textarea>")
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ============================ pagina indice ============================
 function tabelaLinks() {
   let rows = "";
   for (const q of Object.keys(CODE)) {
@@ -32,7 +46,33 @@ function tabelaLinks() {
     `entram na seleção). É só visual — não roda nada, serve pra copiar com discrição.</p>`;
 }
 
-function index() {
+// lista "Questoes cadastradas": as assadas (50/54/55) + as da turma (KV)
+async function listaCadastradas(kv) {
+  const items = Object.keys(CODE).map((q) => ({ n: q, nome: NOMES[q], base: true }));
+  if (kv) {
+    try {
+      const { keys = [] } = await kv.list({ prefix: KV_PREFIX });
+      for (const k of keys) {
+        const n = k.name.slice(KV_PREFIX.length);
+        if (CODE[n]) continue; // ja listado como assada
+        items.push({ n, nome: (k.metadata && k.metadata.nome) || ("Questão " + n), base: false });
+      }
+    } catch (e) { /* KV indisponivel: mostra so as assadas */ }
+  }
+  const rows = items.map((it) =>
+    `<li><a href="/dev/${encodeURIComponent(it.n)}">/dev/${esc(it.n)}</a> — ${esc(it.nome)}` +
+    (it.base ? ` <span class=badge>base</span>` : ` <span class=badge2>turma</span>`) + `</li>`
+  ).join("");
+  return `<h2>Questões cadastradas</h2>` +
+    `<ul class=qlist>${rows}</ul>` +
+    `<p class=rec><b>Cadastrar uma questão nova:</b> acesse <code>/dev/SEU-NUMERO</code> ` +
+    `(um número ou nome ainda <b>não usado</b>), cole o código Assembly e salve. Ela passa a ` +
+    `abrir em <code>/dev/SEU-NUMERO</code> pra todo mundo. <b>Cada id só pode ser cadastrado ` +
+    `uma vez</b> — depois disso o código fica travado e não dá pra sobrescrever.</p>`;
+}
+
+async function index(kv) {
+  const lista = await listaCadastradas(kv);
   return `<!doctype html><meta charset=utf-8><title>Codigos de prova — Arquitetura</title>` +
     `<style>body{font-family:monospace;max-width:860px;margin:40px auto;padding:0 16px;line-height:1.6;color:#111}` +
     `table{border-collapse:collapse;width:100%;margin:8px 0}td,th{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}` +
@@ -41,6 +81,9 @@ function index() {
     `code{background:#f4f4f4;padding:1px 4px;border-radius:3px}` +
     `.tip{background:#fffae6;border:1px solid #f0e0a0;padding:8px 12px;border-radius:4px}` +
     `.rec{background:#e9f7e9;border:1px solid #b9dfb9;padding:8px 12px;border-radius:4px}` +
+    `.qlist{list-style:none;margin:8px 0;padding:0}.qlist li{margin:5px 0}` +
+    `.badge{background:#555;color:#fff;font-size:.72em;padding:1px 7px;border-radius:9px;margin-left:6px}` +
+    `.badge2{background:#2a8c4a;color:#fff;font-size:.72em;padding:1px 7px;border-radius:9px;margin-left:6px}` +
     `ol{margin:8px 0 8px 22px}ol li{margin:3px 0}</style>` +
 
     `<h1>Códigos de prova — Arquitetura (Assembly x86)</h1>` +
@@ -49,6 +92,8 @@ function index() {
     `<p class=rec>Os códigos já vêm na versão robusta (montam a pilha e ligam a interrupção do teclado), ` +
     `então rodam nos dois. <b>Recomendado: VirtualBox</b> — é o mais provável no laboratório. ` +
     `QEMU é o mais simples de rodar, se estiver disponível.</p>` +
+
+    lista +
 
     // ===================== OPCAO A — VIRTUALBOX =====================
     `<h2>Opção A — VirtualBox (recomendada)</h2>` +
@@ -127,83 +172,224 @@ qemu-system-i386 -fda prova.bin</pre>` +
     `<p class=tip>Se der problema, copie esta página inteira + a mensagem de erro do terminal e mande para uma IA — tem tudo que ela precisa para ajudar.</p>`;
 }
 
-// escapa os 3 caracteres que quebrariam o HTML (o assembly usa "->" nos comentarios)
-function esc(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+// ============================ paginas "cmd" ============================
+// CSS base compartilhado pelas telas que imitam o Prompt de Comando.
+const CMDCSS =
+  `:root{--bg:#0c0c0c;--fg:#cccccc}` +
+  `*{margin:0;padding:0;box-sizing:border-box}` +
+  `html,body{background:var(--bg)}` +
+  `body{color:var(--fg);font-family:Consolas,"Cascadia Mono","Lucida Console","Courier New",monospace;` +
+  `font-size:16px;line-height:1.2;min-height:100vh;padding:2px 6px 48px;-webkit-font-smoothing:antialiased}` +
+  `#term{white-space:pre-wrap;overflow-wrap:break-word}` +
+  `.chrome{-webkit-user-select:none;user-select:none}` +
+  `::selection{background:#cccccc;color:#0c0c0c}` +
+  `::-moz-selection{background:#cccccc;color:#0c0c0c}`;
 
-// dev(): pagina que IMITA o Prompt de Comando do Windows (cmd.exe).
-// NAO e um terminal de verdade — e texto fixo com cara de cmd: fundo preto,
-// fonte Consolas, cabecalho da Microsoft, prompt "C:\Users\User>" e um cursor
-// (bloco) piscando colado no fim do codigo, como se estivesse sendo digitado.
-// So a regiao do codigo e selecionavel; o cabecalho/prompt tem user-select:none,
-// entao Ctrl+A -> Ctrl+C copia exatamente o assembly (sem lixo).
-function dev(q, variant) {
-  const entry = q ? CODE[q] : null;
-  const raw = entry ? entry[variant] : null;
-  // CRLF -> LF (evita \r solto no pre-wrap) e tira a(s) quebra(s) final(is)
-  // pro cursor ficar colado logo depois do "db 0xaa".
-  const codigo = raw ? esc(raw.replace(/\r\n/g, "\n").replace(/\n+$/, "")) : null;
+const CMD_HEADER =
+  "Microsoft Windows [versão 10.0.26200.6584]\n" +
+  "(c) Microsoft Corporation. Todos os direitos reservados.\n\n";
 
-  const header =
-    "Microsoft Windows [versão 10.0.26200.6584]\n" +
-    "(c) Microsoft Corporation. Todos os direitos reservados.\n\n";
-
-  const corpo = codigo
-    ? `<span class="chrome">${esc(header)}C:\\Users\\User&gt;copy con prova.asm\n</span>` +
-      `<span class="code">${codigo}</span>` +
+// devPage(): IMITA o cmd.exe. Recebe o codigo cru (string) ou null (prompt vazio).
+// So a regiao do codigo e selecionavel; cabecalho/prompt tem user-select:none, entao
+// Ctrl+A -> Ctrl+C copia exatamente o assembly.
+function devPage(codigo) {
+  const norm = codigo != null
+    ? esc(String(codigo).replace(/\r\n/g, "\n").replace(/\n+$/, ""))
+    : null;
+  const corpo = norm != null
+    ? `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;copy con prova.asm\n</span>` +
+      `<span class="code">${norm}</span>` +
       `<span class="caret" aria-hidden="true"></span>`
-    : `<span class="chrome">${esc(header)}C:\\Users\\User&gt;</span>` +
+    : `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;</span>` +
       `<span class="caret" aria-hidden="true"></span>`;
 
   return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
     `<title>C:\\Windows\\System32\\cmd.exe</title>` +
-    `<style>` +
-    `:root{--bg:#0c0c0c;--fg:#cccccc}` +
-    `*{margin:0;padding:0;box-sizing:border-box}` +
-    `html,body{background:var(--bg)}` +
-    `body{color:var(--fg);` +
-    `font-family:Consolas,"Cascadia Mono","Lucida Console","Courier New",monospace;` +
-    `font-size:16px;line-height:1.2;min-height:100vh;padding:2px 6px 48px;` +
-    `-webkit-font-smoothing:antialiased}` +
-    `#term{white-space:pre-wrap;overflow-wrap:break-word}` +
-    `.chrome{-webkit-user-select:none;user-select:none}` +
+    `<style>` + CMDCSS +
     `.code{-webkit-user-select:text;user-select:text}` +
-    `::selection{background:#cccccc;color:#0c0c0c}` +
-    `::-moz-selection{background:#cccccc;color:#0c0c0c}` +
     `.caret{display:inline-block;width:.55em;height:1.05em;background:var(--fg);` +
-    `vertical-align:text-bottom;margin-left:1px;` +
-    `animation:cmdblink 1.06s steps(1,end) infinite;` +
+    `vertical-align:text-bottom;margin-left:1px;animation:cmdblink 1.06s steps(1,end) infinite;` +
     `-webkit-user-select:none;user-select:none}` +
     `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
     `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
     `</style></head><body><div id="term">${corpo}</div></body></html>`;
 }
 
-export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-    const parts = url.pathname.split("/").filter(Boolean);
+// formPage(): tela (estilo cmd) pra cadastrar o codigo de uma questao ainda inexistente.
+// opts: { codigo (prefill), nome (prefill), erro (bloqueio), aviso ([faltas] -> pede confirmar) }
+function formPage(n, opts) {
+  opts = opts || {};
+  const codigoVal = opts.codigo ? esc(String(opts.codigo).replace(/\r\n/g, "\n")) : "";
+  const nomeVal = opts.nome ? esc(opts.nome) : "";
+  let msg = "";
+  if (opts.erro) {
+    msg = `<p class="erro">! ${esc(opts.erro)}</p>`;
+  } else if (opts.aviso && opts.aviso.length) {
+    msg = `<p class="aviso">! Atenção: isso não parece um boot sector completo ` +
+      `(faltando: ${opts.aviso.map(esc).join(", ")}). Confira se não esqueceu nada. ` +
+      `Se tiver certeza, marque a caixa abaixo e salve.</p>`;
+  }
 
-    if (parts.length === 0) return new Response(index(), { headers: HTM });
+  return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>C:\\Windows\\System32\\cmd.exe</title>` +
+    `<style>` + CMDCSS +
+    `body{line-height:1.35}` +
+    `.box{white-space:normal;max-width:920px;margin-top:2px}` +
+    `.titulo{color:#dcdcaa;margin-bottom:8px}` +
+    `.hint{margin:6px 0}` +
+    `.hint2{margin:6px 0 10px 20px;color:#9d9d9d}.hint2 li{margin:2px 0}` +
+    `code{color:#ce9178}` +
+    `.erro{color:#f48771;border-left:3px solid #f48771;padding:6px 10px;margin:10px 0;background:#2a1414}` +
+    `.aviso{color:#e5c07b;border-left:3px solid #e5c07b;padding:6px 10px;margin:10px 0;background:#282110}` +
+    `label{display:block;margin:10px 0 4px}` +
+    `input[type=text]{background:#1a1a1a;color:var(--fg);border:1px solid #3a3a3a;font:inherit;padding:5px 7px;width:100%;max-width:340px}` +
+    `textarea{display:block;width:100%;height:52vh;min-height:280px;background:#000;color:var(--fg);` +
+    `border:1px solid #3a3a3a;font:inherit;padding:8px;resize:vertical;white-space:pre;tab-size:8}` +
+    `textarea:focus,input:focus{outline:none;border-color:#6a9955}` +
+    `.chk{color:#e5c07b;display:flex;align-items:center;gap:8px;margin-top:12px}` +
+    `.chk input{width:auto}` +
+    `button{margin-top:14px;background:#1f1f1f;color:var(--fg);border:1px solid #4a4a4a;font:inherit;padding:9px 18px;cursor:pointer}` +
+    `button:hover{background:#2d2d2d;border-color:#6a9955}` +
+    `</style></head><body><div id="term">` +
+    `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;type ${esc(n)}.asm\n` +
+    `O sistema não pode encontrar o arquivo especificado.\n\n</span>` +
+    `<div class="box">` +
+    `<div class="titulo">:: cadastrar questão "${esc(n)}"</div>` +
+    `<p class="hint">Cole abaixo o código Assembly desta questão e clique em <b>Salvar</b>. ` +
+    `Ele passa a abrir pra todo mundo em <b>/dev/${esc(n)}</b>. ` +
+    `<b>Só dá pra cadastrar uma vez</b> — depois disso o código fica travado.</p>` +
+    `<ul class="hint2">` +
+    `<li>Deve ser um boot sector completo (começa com <code>org 0x7c00</code>).</li>` +
+    `<li>Termina com <code>times 510-($-$$) db 0</code> / <code>db 0x55</code> / <code>db 0xaa</code>.</li>` +
+    `<li>Tamanho máximo: 100 KB.</li></ul>` +
+    msg +
+    `<form method="POST" action="/dev/${encodeURIComponent(n)}">` +
+    `<label for="nome">nome (opcional):</label>` +
+    `<input id="nome" type="text" name="nome" maxlength="60" value="${nomeVal}" placeholder="ex: Fibonacci">` +
+    `<label for="codigo">código:</label>` +
+    `<textarea id="codigo" name="codigo" spellcheck="false" autocapitalize="off" autocorrect="off" ` +
+    `placeholder="; cole aqui o codigo assembly (org 0x7c00 ... db 0xaa)">${codigoVal}</textarea>` +
+    (opts.aviso && opts.aviso.length
+      ? `<label class="chk"><input type="checkbox" name="confirmar" value="1"> salvar assim mesmo (sei que pode faltar algo)</label>`
+      : ``) +
+    `<button type="submit">Salvar e abrir /dev/${esc(n)}</button>` +
+    `</form></div></div></body></html>`;
+}
 
-    // /dev, /dev/{q}, /dev/{q}/full -> terminal (cmd falso)
-    if (parts[0] === "dev") {
-      const dq = parts[1] || null;
-      const dvar = parts[2] === "full" ? "full" : "curto";
-      return new Response(dev(dq, dvar), { headers: HTM });
+// ============================ /dev handler ============================
+async function handleDev(request, parts, kv) {
+  const n = parts[1] || null;
+
+  // /dev  -> prompt vazio piscando
+  if (!n) return new Response(devPage(null), { headers: HTM });
+
+  // questao assada (50/54/55): sempre vence, imutavel
+  if (CODE[n]) {
+    const variant = parts[2] === "full" ? "full" : "curto";
+    return new Response(devPage(CODE[n][variant]), { headers: HTM });
+  }
+
+  // id fora do padrao
+  if (!ID_OK.test(n)) {
+    return new Response(devPage("; id invalido — use so letras, numeros, - ou _ (ate 40 caracteres)."),
+      { status: 400, headers: HTM });
+  }
+
+  // ja cadastrada no KV?
+  let existing = { value: null };
+  if (kv) {
+    try { existing = await kv.getWithMetadata(KV_PREFIX + n); } catch (e) { existing = { value: null }; }
+  }
+
+  if (request.method === "POST") {
+    // WRITE-ONCE: se ja existe, ignora o envio e mostra o codigo que ja esta la
+    if (existing && existing.value != null) {
+      return new Response(devPage(existing.value), { headers: HTM });
+    }
+    if (!kv) {
+      return new Response(devPage("; armazenamento indisponivel no momento — tente de novo mais tarde."),
+        { status: 503, headers: HTM });
     }
 
+    let form;
+    try { form = await request.formData(); } catch (e) { form = null; }
+    if (!form) {
+      return new Response(formPage(n, { erro: "Envio inválido. Use o formulário para colar o código." }),
+        { headers: HTM });
+    }
+    const codigo = String(form.get("codigo") || "");
+    const nome = String(form.get("nome") || "").trim().slice(0, 60);
+    const confirmar = form.get("confirmar");
+
+    // validacao dura: vazio / tamanho
+    const codeTrim = codigo.replace(/\r\n/g, "\n").replace(/\s+$/, "");
+    if (!codeTrim.trim()) {
+      return new Response(formPage(n, { codigo, nome, erro: "Cole algum código antes de salvar." }),
+        { headers: HTM });
+    }
+    if (codigo.length > MAX_BYTES) {
+      return new Response(formPage(n, { nome, erro: "Código grande demais (máximo 100 KB)." }),
+        { headers: HTM });
+    }
+
+    // validacao leve: avisa (e pede confirmacao) se nao parecer boot sector
+    const low = codeTrim.toLowerCase();
+    const faltas = [];
+    if (!low.includes("org 0x7c00")) faltas.push("org 0x7c00");
+    if (!low.includes("0xaa")) faltas.push("db 0xaa (assinatura de boot)");
+    if (faltas.length && !confirmar) {
+      return new Response(formPage(n, { codigo, nome, aviso: faltas }), { headers: HTM });
+    }
+
+    // salva (write-once) e mostra o codigo direto (nao depende da propagacao do KV)
+    try {
+      await kv.put(KV_PREFIX + n, codeTrim, { metadata: { nome: nome || ("Questão " + n) } });
+    } catch (e) {
+      return new Response(formPage(n, { codigo, nome, erro: "Falha ao salvar. Tente de novo." }),
+        { headers: HTM });
+    }
+    return new Response(devPage(codeTrim), { headers: HTM });
+  }
+
+  // GET: mostra o codigo se ja existe, senao o formulario de cadastro
+  if (existing && existing.value != null) {
+    return new Response(devPage(existing.value), { headers: HTM });
+  }
+  return new Response(formPage(n, {}), { headers: HTM });
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const kv = env && env.KV ? env.KV : null;
+
+    if (parts.length === 0) return new Response(await index(kv), { headers: HTM });
+
+    // /dev, /dev/{q}, /dev/{q}/full, POST /dev/{q}
+    if (parts[0] === "dev") return await handleDev(request, parts, kv);
+
+    // texto puro: /api/arq/{q} (enxuta) e /req_full/{q} (extensa)
     let q = null, variant = null;
     if (parts[0] === "api" && parts[1] === "arq" && parts[2]) { q = parts[2]; variant = "curto"; }
     else if (parts[0] === "req_full" && parts[1]) { q = parts[1]; variant = "full"; }
 
-    if (!q) return new Response("Rota invalida.\nUse /api/arq/{50|54|55} ou /req_full/{50|54|55}", { status: 404, headers: TXT });
+    if (!q) return new Response("Rota invalida.\nUse /api/arq/{q} ou /req_full/{q}", { status: 404, headers: TXT });
 
     const entry = CODE[q];
-    if (!entry) return new Response("Questao " + q + " nao existe. Disponiveis: 50, 54, 55", { status: 404, headers: TXT });
+    if (entry) return new Response(entry[variant], { headers: TXT });
 
-    return new Response(entry[variant], { headers: TXT });
+    // fallback: questao cadastrada pela turma (KV) — codigo unico p/ os dois variants
+    if (kv) {
+      try {
+        const v = await kv.get(KV_PREFIX + q);
+        if (v != null) return new Response(v, { headers: TXT });
+      } catch (e) { /* ignora */ }
+    }
+
+    return new Response("Questao " + q + " nao existe. Assadas: 50, 54, 55 (ou cadastre em /dev/" + q + ")",
+      { status: 404, headers: TXT });
   }
 };

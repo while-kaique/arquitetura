@@ -128,10 +128,24 @@ com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
 | `/api/arq/{q}` | versao **enxuta** (recomendada) |
 | `/req_full/{q}` | versao **extensa** |
 | `/dev` | **terminal falso** (cmd.exe) vazio: so o prompt com cursor piscando |
-| `/dev/{q}` | terminal falso com a versao **enxuta** "colada" (parece cmd) |
-| `/dev/{q}/full` | terminal falso com a versao **extensa** |
+| `/dev/{q}` | se `{q}` existe (assada **ou** cadastrada): terminal com o codigo. Se NAO existe: **formulario de cadastro** |
+| `/dev/{q}/full` | terminal falso com a versao **extensa** (so p/ as assadas) |
+| `POST /dev/{q}` | **salva** o codigo colado no KV (write-once) e mostra o terminal |
 
-`q` = `50` (bissexto), `54` (triangular), `55` (perfeito).
+`q` assadas = `50` (bissexto), `54` (triangular), `55` (perfeito). Qualquer outro id
+(`[A-Za-z0-9_-]{1,40}`) pode ser cadastrado pela turma.
+
+**Cadastro aberto de questoes (`/dev/{n}` + Workers KV).** Se `{n}` nao existe,
+`/dev/{n}` mostra um formulario (estilo cmd) pra colar o assembly; ao salvar, vai
+pro **Workers KV** (binding `KV`, namespace `arq-questoes`) e passa a abrir em
+`/dev/{n}` pra todo mundo. **Write-once:** uma vez que `{n}` tem codigo (assada ou
+no KV) **nunca** e sobrescrito — as assadas `50/54/55` ficam protegidas por isso.
+Sem senha (uso combinado, poucas pessoas); protecoes: teto de 100 KB, validacao
+leve (avisa+pede confirmacao se faltar `org 0x7c00`/`db 0xaa`), e escape de `& < >`
+(anti-XSS, ja que o texto e publico). Leitura tambem cai no KV em `/api/arq/{n}`.
+O indice lista as cadastradas ("Questoes cadastradas", badge `base` vs `turma`).
+> O KV existe **so na conta UFC** (`kaique-ufc`). A gocase nao tem esse binding
+> (e nao mexemos mais nela).
 
 **Modo terminal (`/dev`) — disfarce visual.** Pagina HTML que IMITA o Prompt de
 Comando do Windows (fundo `#0c0c0c`, fonte Consolas 16px cor `#cccccc`, cabecalho
@@ -146,9 +160,12 @@ CRLF->LF e escapa `& < >` (o assembly usa `->` nos comentarios) via `esc()`.
 
 **Estrutura (o worker.js e GERADO — nao editar na mao):**
 - `asm/{q}_{curto|full}.asm` — as **fontes** de verdade dos 6 programas.
-- `worker.template.js` — roteamento + a pagina `index()` (guia VBox/QEMU) + o
-  `dev()`/`esc()` (terminal falso), com placeholders `__CODE_PLACEHOLDER__` /
-  `__NOMES_PLACEHOLDER__`.
+- `worker.template.js` — roteamento (`fetch(request, env)`) + `index()` (async,
+  guia VBox/QEMU + lista de cadastradas), `handleDev()` (GET mostra codigo/form,
+  POST salva write-once), `devPage()` (terminal cmd), `formPage()` (form de
+  cadastro), `listaCadastradas()`, `esc()`. Placeholders `__CODE_PLACEHOLDER__` /
+  `__NOMES_PLACEHOLDER__`. O acesso ao KV e `env.KV` (com guarda: sem KV a feature
+  desliga sozinha, e os testes rodam com um KV falso em memoria).
 - `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.
   Rodar: `node build_worker.js`.
 - `test_worker.mjs` — testa rotas e confere que o servido == os `.asm`.
@@ -171,7 +188,15 @@ node build_worker.js   # regenera src/worker.js a partir dos .asm
 npx wrangler login     # so na 1a vez
 npx wrangler deploy
 ```
-URL publica fica `https://arq-prova.SEU-SUBDOMINIO.workers.dev`.
+URL publica (conta UFC): `https://arq-prova.kaique-ufc.workers.dev`.
+Existe tambem uma copia antiga em `https://arq-prova.kaique-rpa.workers.dev`
+(conta gocase) — **congelada, sem KV**; nao mexemos mais nela.
+
+**Setup do KV (uma vez por conta):** `npx wrangler kv namespace create arq-questoes`
+-> pega o `id` e poe no `wrangler.toml` como `[[kv_namespaces]] binding="KV" id="..."`.
+Na conta UFC o namespace `arq-questoes` ja existe (id no `wrangler.toml`).
+Apagar uma questao cadastrada: `npx wrangler kv key delete --binding KV "q:{n}"`
+(ou `--namespace-id`).
 
 **Como rodar o que o worker serve** (resumo; detalhes na pagina indice):
 - **VirtualBox:** `nasm -f bin prova.asm -o prova.bin` -> `fsutil file createnew

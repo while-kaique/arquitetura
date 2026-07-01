@@ -4,3 +4,9 @@ compatibility_date = "2024-11-01"
 
 # Habilita a URL publica *.workers.dev
 workers_dev = true
+
+# Armazenamento das questoes cadastradas pela turma (rota /dev/{n}).
+# Namespace criado com: npx wrangler kv namespace create arq-questoes
+[[kv_namespaces]]
+binding = "KV"
+id = "b42846f67c1649569bb315e030bbb2d1"
