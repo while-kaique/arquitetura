@@ -10,6 +10,18 @@ Este repositorio tem DUAS fases distintas. Leia a que for relevante.
 
 ---
 
+# Convencoes de trabalho (SEMPRE seguir)
+
+1. **Sempre usar worktree do git para trabalhos paralelos.** Antes de comecar
+   qualquer tarefa de implementacao, crie/entre num worktree isolado (nao
+   trabalhe direto na `main`). Isso mantem a `main` limpa e permite revisar/mergear
+   depois. Ao terminar, commite no branch do worktree e mergeie na `main`.
+2. **Sempre manter este CLAUDE.md atualizado.** A cada mudanca relevante no
+   projeto (codigo, worker, fluxo, decisoes), atualize este arquivo no mesmo
+   trabalho — nunca deixe o CLAUDE.md desatualizado em relacao ao que foi feito.
+
+---
+
 # FASE 2 — Prova pratica de Assembly x86 (foco atual)
 
 ## O cenario da prova
@@ -29,10 +41,22 @@ Este repositorio tem DUAS fases distintas. Leia a que for relevante.
 
 ## Formato dos programas
 
-Todos os programas sao **boot sectors** de 512 bytes que rodam em bare metal via
-QEMU (nao dependem de OS):
+Todos os programas sao **boot sectors** de 512 bytes que rodam em bare metal
+(nao dependem de OS). Rodam tanto em **VirtualBox** quanto em **QEMU**:
 
-- Comecam com `org 0x7c00` / `bits 16`.
+- Prologo **robusto** (padronizado para funcionar bem no VirtualBox, e tambem
+  no QEMU):
+  ```
+  org 0x7c00
+  bits 16
+  xor ax, ax
+  mov ds, ax
+  mov ss, ax
+  mov sp, 0x7c00     ; monta a pilha (necessario p/ call/ret e push/pop)
+  sti                ; liga interrupcao (necessario p/ ler teclado via BIOS)
+  ```
+  Antes usavamos `cli` e nao montavamos a pilha — funcionava no QEMU por sorte,
+  mas era risco no VirtualBox. O `sti` + stack explicita elimina isso.
 - Leem um numero pelo teclado via `int 0x16` (rotina `geti` = o "GET i").
 - Ecoam e imprimem via `int 0x10`.
 - Terminam **obrigatoriamente** com a assinatura de boot:
@@ -44,17 +68,33 @@ QEMU (nao dependem de OS):
 - Aritmetica em 16 bits — funcionam com numeros ate **65535**.
 
 ### Montar e rodar
+
+**VirtualBox (recomendado — mais provavel no laboratorio):**
 ```
-nasm -f bin prova.asm -o prova.img
-qemu-system-i386 -fda prova.img
+nasm -f bin prova.asm -o prova.bin
+fsutil file createnew pad.img 1474048
+copy /b prova.bin+pad.img prova.img     ; prova.img fica com 1.44MB exatos
+```
+Depois: criar VM (Type Other, sem HD), anexar `prova.img` como disquete,
+por Disquete no topo da ordem de boot, Start. Instalacao:
+`winget install NASM.NASM` e `winget install Oracle.VirtualBox`.
+
+**QEMU (mais simples de rodar, se disponivel):**
+```
+nasm -f bin prova.asm -o prova.bin
+qemu-system-i386 -fda prova.bin
 ```
 Instalacao (Windows): `winget install NASM.NASM` e
-`winget install SoftwareFreedomConservancy.QEMU` (reabrir o terminal depois).
+`winget install SoftwareFreedomConservancy.QEMU`.
 Linux: `sudo apt update && sudo apt install nasm qemu-system-x86`.
+
+> NASM instalado nesta maquina em `C:\Users\User\AppData\Local\bin\NASM\nasm.exe`
+> (nao esta no PATH do PowerShell/bash por padrao).
 
 ## Questoes resolvidas
 
-Cada questao tem **duas versoes** testadas no QEMU:
+Cada questao tem **duas versoes** (ambas montadas e verificadas: 512 bytes,
+assinatura `55 aa`):
 - **enxuta** (~30 linhas) — recomendada para digitar rapido na prova.
 - **extensa** (~79 linhas) — comentada, com `push`/`pop` e labels descritivos.
 
@@ -76,35 +116,53 @@ Cada questao tem **duas versoes** testadas no QEMU:
 ## arq-worker (Cloudflare Worker "arq-prova")
 
 Worker que serve o assembly das questoes como `text/plain`, para abrir o link no
-dia da prova, **Ctrl+A -> Ctrl+C**, colar e rodar. Tambem serve uma pagina indice
-HTML com guia de instalacao NASM+QEMU e tabela de problemas comuns.
+dia da prova, **Ctrl+A -> Ctrl+C**, colar e rodar. A pagina indice tem um guia
+com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
+**instalar -> configurar -> pegar/rodar o codigo**, + tabela de problemas comuns.
 
 **Rotas:**
 
 | Rota | Devolve |
 |------|---------|
-| `/` | pagina indice (links + guia de instalacao) |
+| `/` | pagina indice (guia VirtualBox + QEMU) |
 | `/api/arq/{q}` | versao **enxuta** (recomendada) |
 | `/req_full/{q}` | versao **extensa** |
 
 `q` = `50` (bissexto), `54` (triangular), `55` (perfeito).
 
-**Estrutura:**
-- `src/worker.js` — todo o codigo. Os `.asm` estao **embutidos** no objeto `CODE`
-  (chaves `curto`/`full` por questao) e a pagina indice e gerada por `index()`.
-- `wrangler.toml` — config (`name = "arq-prova"`, `workers_dev = true`).
-- `package.json` — `wrangler` como devDependency; scripts `dev` e `deploy`.
+**Estrutura (o worker.js e GERADO — nao editar na mao):**
+- `asm/{q}_{curto|full}.asm` — as **fontes** de verdade dos 6 programas.
+- `worker.template.js` — roteamento + a pagina `index()` (guia VBox/QEMU), com
+  placeholders `__CODE_PLACEHOLDER__` / `__NOMES_PLACEHOLDER__`.
+- `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.
+  Rodar: `node build_worker.js`.
+- `test_worker.mjs` — testa rotas e confere que o servido == os `.asm`.
+  Rodar: `node test_worker.mjs`.
+- `src/worker.js` — **gerado**, nao editar.
+- `wrangler.toml` / `package.json` (`type: module`; scripts `dev`/`deploy`).
+
+**Editar codigos:** edite o `.asm` em `asm/`, rode `node build_worker.js`, depois
+`node test_worker.mjs`, e re-deploy. As versoes servidas devem bater com os
+`GUIA_PROVA_*.md`.
+
+> CUIDADO (bug ja corrigido): `build_worker.js` injeta o codigo com **funcao** de
+> substituicao no `.replace`, nao string. Com string, `String.replace` interpreta
+> `$$` (que existe em `times 510 - ($ - $$)`) como `$`, gerando boot sector
+> invalido. Nunca trocar por substituicao via string.
 
 **Deploy** (dentro de `arq-worker/`):
 ```
+node build_worker.js   # regenera src/worker.js a partir dos .asm
 npx wrangler login     # so na 1a vez
 npx wrangler deploy
 ```
 URL publica fica `https://arq-prova.SEU-SUBDOMINIO.workers.dev`.
 
-**Editar codigos:** as strings `.asm` vivem embutidas em `CODE` no `worker.js`.
-Para mudar um codigo, edite a string la (ou regenere embutindo os `.asm`) e
-re-deploy. As versoes servidas devem bater com os `GUIA_PROVA_*.md`.
+**Como rodar o que o worker serve** (resumo; detalhes na pagina indice):
+- **VirtualBox:** `nasm -f bin prova.asm -o prova.bin` -> `fsutil file createnew
+  pad.img 1474048` -> `copy /b prova.bin+pad.img prova.img` -> anexar como
+  disquete e dar boot.
+- **QEMU:** `nasm -f bin prova.asm -o prova.bin` -> `qemu-system-i386 -fda prova.bin`.
 
 ## Possiveis proximas questoes (nao resolvidas)
 
