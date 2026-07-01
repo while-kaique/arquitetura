@@ -4,6 +4,9 @@
 //   /              -> pagina indice (guia VirtualBox + QEMU)
 //   /api/arq/{q}   -> versao ENXUTA  (recomendada)
 //   /req_full/{q}  -> versao EXTENSA
+//   /dev           -> "terminal" (cmd falso) vazio, so o prompt piscando
+//   /dev/{q}       -> terminal com a versao ENXUTA colada (parece cmd)
+//   /dev/{q}/full  -> terminal com a versao EXTENSA colada
 // q em: 50 (bissexto), 54 (triangular), 55 (perfeito)
 const CODE = __CODE_PLACEHOLDER__;
 const NOMES = __NOMES_PLACEHOLDER__;
@@ -16,12 +19,17 @@ function tabelaLinks() {
   for (const q of Object.keys(CODE)) {
     rows += `<tr><td>${q}</td><td>${NOMES[q]}</td>` +
       `<td><a href="/api/arq/${q}">/api/arq/${q}</a></td>` +
-      `<td><a href="/req_full/${q}">/req_full/${q}</a></td></tr>`;
+      `<td><a href="/req_full/${q}">/req_full/${q}</a></td>` +
+      `<td><a href="/dev/${q}">enxuta</a> · <a href="/dev/${q}/full">extensa</a></td></tr>`;
   }
   return `<table><tr><th>Q</th><th>Questão</th><th>Enxuta (recomendada)</th>` +
-    `<th>Extensa (comentada)</th></tr>${rows}</table>` +
+    `<th>Extensa (comentada)</th><th>Terminal</th></tr>${rows}</table>` +
     `<p>Abra o link, <b>Ctrl+A</b> (selecionar tudo), <b>Ctrl+C</b>, cole no editor e ` +
-    `salve como <code>prova.asm</code>.</p>`;
+    `salve como <code>prova.asm</code>.</p>` +
+    `<p class=tip><b>Coluna Terminal:</b> abre o código numa tela <b>idêntica ao Prompt de ` +
+    `Comando</b> do Windows (fundo preto, fonte Consolas, cursor piscando). Dá ` +
+    `<b>Ctrl+A → Ctrl+C</b> direto que só o código é copiado (o cabeçalho e o prompt não ` +
+    `entram na seleção). É só visual — não roda nada, serve pra copiar com discrição.</p>`;
 }
 
 function index() {
@@ -119,12 +127,73 @@ qemu-system-i386 -fda prova.bin</pre>` +
     `<p class=tip>Se der problema, copie esta página inteira + a mensagem de erro do terminal e mande para uma IA — tem tudo que ela precisa para ajudar.</p>`;
 }
 
+// escapa os 3 caracteres que quebrariam o HTML (o assembly usa "->" nos comentarios)
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// dev(): pagina que IMITA o Prompt de Comando do Windows (cmd.exe).
+// NAO e um terminal de verdade — e texto fixo com cara de cmd: fundo preto,
+// fonte Consolas, cabecalho da Microsoft, prompt "C:\Users\User>" e um cursor
+// (bloco) piscando colado no fim do codigo, como se estivesse sendo digitado.
+// So a regiao do codigo e selecionavel; o cabecalho/prompt tem user-select:none,
+// entao Ctrl+A -> Ctrl+C copia exatamente o assembly (sem lixo).
+function dev(q, variant) {
+  const entry = q ? CODE[q] : null;
+  const raw = entry ? entry[variant] : null;
+  // CRLF -> LF (evita \r solto no pre-wrap) e tira a(s) quebra(s) final(is)
+  // pro cursor ficar colado logo depois do "db 0xaa".
+  const codigo = raw ? esc(raw.replace(/\r\n/g, "\n").replace(/\n+$/, "")) : null;
+
+  const header =
+    "Microsoft Windows [versão 10.0.26200.6584]\n" +
+    "(c) Microsoft Corporation. Todos os direitos reservados.\n\n";
+
+  const corpo = codigo
+    ? `<span class="chrome">${esc(header)}C:\\Users\\User&gt;copy con prova.asm\n</span>` +
+      `<span class="code">${codigo}</span>` +
+      `<span class="caret" aria-hidden="true"></span>`
+    : `<span class="chrome">${esc(header)}C:\\Users\\User&gt;</span>` +
+      `<span class="caret" aria-hidden="true"></span>`;
+
+  return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>C:\\Windows\\System32\\cmd.exe</title>` +
+    `<style>` +
+    `:root{--bg:#0c0c0c;--fg:#cccccc}` +
+    `*{margin:0;padding:0;box-sizing:border-box}` +
+    `html,body{background:var(--bg)}` +
+    `body{color:var(--fg);` +
+    `font-family:Consolas,"Cascadia Mono","Lucida Console","Courier New",monospace;` +
+    `font-size:16px;line-height:1.2;min-height:100vh;padding:2px 6px 48px;` +
+    `-webkit-font-smoothing:antialiased}` +
+    `#term{white-space:pre-wrap;overflow-wrap:break-word}` +
+    `.chrome{-webkit-user-select:none;user-select:none}` +
+    `.code{-webkit-user-select:text;user-select:text}` +
+    `::selection{background:#cccccc;color:#0c0c0c}` +
+    `::-moz-selection{background:#cccccc;color:#0c0c0c}` +
+    `.caret{display:inline-block;width:.55em;height:1.05em;background:var(--fg);` +
+    `vertical-align:text-bottom;margin-left:1px;` +
+    `animation:cmdblink 1.06s steps(1,end) infinite;` +
+    `-webkit-user-select:none;user-select:none}` +
+    `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
+    `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
+    `</style></head><body><div id="term">${corpo}</div></body></html>`;
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
 
     if (parts.length === 0) return new Response(index(), { headers: HTM });
+
+    // /dev, /dev/{q}, /dev/{q}/full -> terminal (cmd falso)
+    if (parts[0] === "dev") {
+      const dq = parts[1] || null;
+      const dvar = parts[2] === "full" ? "full" : "curto";
+      return new Response(dev(dq, dvar), { headers: HTM });
+    }
 
     let q = null, variant = null;
     if (parts[0] === "api" && parts[1] === "arq" && parts[2]) { q = parts[2]; variant = "curto"; }
