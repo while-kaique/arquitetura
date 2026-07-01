@@ -19,6 +19,10 @@ Este repositorio tem DUAS fases distintas. Leia a que for relevante.
 2. **Sempre manter este CLAUDE.md atualizado.** A cada mudanca relevante no
    projeto (codigo, worker, fluxo, decisoes), atualize este arquivo no mesmo
    trabalho — nunca deixe o CLAUDE.md desatualizado em relacao ao que foi feito.
+3. **Sempre manter a pagina `/help` do worker atualizada.** Toda vez que mudar
+   rota, fluxo ou funcionalidade do site, atualize a funcao `help()` em
+   `arq-worker/worker.template.js` (e o teste de `/help`) no mesmo trabalho.
+   O `/help` deve sempre refletir o que o site realmente faz.
 
 ---
 
@@ -124,7 +128,8 @@ com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
 
 | Rota | Devolve |
 |------|---------|
-| `/` | pagina indice (guia VirtualBox + QEMU) |
+| `/` | pagina indice (guia VirtualBox + QEMU + lista de cadastradas) |
+| `/help` | pagina de ajuda: explica ver/cadastrar questoes + links das paginas |
 | `/api/arq/{q}` | versao **enxuta** (recomendada) |
 | `/req_full/{q}` | versao **extensa** |
 | `/dev` | **terminal falso** (cmd.exe) vazio: so o prompt com cursor piscando |
@@ -163,7 +168,8 @@ CRLF->LF e escapa `& < >` (o assembly usa `->` nos comentarios) via `esc()`.
 - `worker.template.js` — roteamento (`fetch(request, env)`) + `index()` (async,
   guia VBox/QEMU + lista de cadastradas), `handleDev()` (GET mostra codigo/form,
   POST salva write-once), `devPage()` (terminal cmd), `formPage()` (form de
-  cadastro), `listaCadastradas()`, `esc()`. Placeholders `__CODE_PLACEHOLDER__` /
+  cadastro), `help()` (pagina de ajuda — manter em dia, convencao #3),
+  `listaCadastradas()`, `esc()`. Placeholders `__CODE_PLACEHOLDER__` /
   `__NOMES_PLACEHOLDER__`. O acesso ao KV e `env.KV` (com guarda: sem KV a feature
   desliga sozinha, e os testes rodam com um KV falso em memoria).
 - `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.
