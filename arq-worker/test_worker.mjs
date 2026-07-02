@@ -67,7 +67,7 @@ ok(idx.body.includes("qemu-system-i386 -fda prova.bin"), "indice tem comando QEM
 ok((idx.body.match(/api\/arq\/50/g) || []).length >= 2, "tabela de links aparece nas duas opcoes");
 
 // 2) rotas de codigo (assadas) batem com os .asm de origem
-for (const q of ["50", "54", "55", "65"]) {
+for (const q of ["22", "23", "50", "54", "55", "65"]) {
   const curto = await get("/api/arq/" + q);
   const full = await get("/req_full/" + q);
   const srcCurto = readFileSync(join(DIR, "asm", `${q}_curto.asm`), "utf8");
@@ -100,6 +100,11 @@ for (const q of ["50", "54", "55"]) {
   ok(d.body.includes("-&gt;"), `/dev/${q} escapa o '->' (HTML valido)`);
 }
 ok((await get("/dev/50/full")).body.includes("pergunta o ano"), "/dev/50/full = versao extensa");
+// 4b) /dev/all: lista de links de todas as questoes
+const all = await get("/dev/all");
+ok(all.status === 200 && all.body.includes('href="/dev/50"') && all.body.includes('href="/dev/23"'), "/dev/all lista links das questoes");
+ok(all.body.includes("Xadrez que pisca") && all.body.includes("Atualizar paleta VGA"), "/dev/all mostra nomes das novas");
+ok(!all.body.includes("<textarea"), "/dev/all nao e formulario de cadastro");
 
 // 5) cadastro de questao nova (KV, write-once)
 const novo = "org 0x7c00\nbits 16\nhlt\ntimes 510-($-$$) db 0\ndb 0x55\ndb 0xaa\n";

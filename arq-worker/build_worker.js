@@ -7,6 +7,8 @@ import { dirname, join } from "node:path";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const QUESTOES = {
+  "22": "Atualizar paleta VGA",
+  "23": "Xadrez que pisca",
   "50": "Ano bissexto",
   "54": "Numero triangular",
   "55": "Numero perfeito",
