@@ -8,3 +8,6 @@ arq-worker/.wrangler/
 arq-worker/_served/
 *.bin
 *.img
+
+# Config pessoal do Claude Code (nao versionar)
+.claude/settings.local.json
