@@ -112,9 +112,15 @@ assinatura `55 aa`):
 
 | Q | Nome | Logica |
 |---|------|--------|
+| `47` | Intercalar duas listas | le 5+5 numeros em `nums` (A nos pares, B nos impares) e imprime em ordem; rotina `printnum` (div por 10) imprime decimal |
 | `50` | Ano bissexto | divisivel por 400 -> sim; senao por 100 -> nao; senao por 4 -> sim |
 | `54` | Numero triangular | testa `k*(k+1)*(k+2)` para k=1,2,... ate igualar/passar de n |
 | `55` | Numero perfeito | soma divisores proprios (1..n-1); perfeito se soma == n |
+| `65` | Pixels VGA por tecla | modo grafico 13h (`int 0x10`); cada tecla (`int 0x16`) faz `stosb` na memoria de video (`0xA000`), cor = byte da tecla, pixel 0,1,2,... |
+
+> `47` e a mais longa (tem `printnum`); `65` e a mais curta (~18 linhas). As tres
+> primeiras (`50/54/55`) so imprimem texto fixo; `47` foi a primeira a imprimir
+> numero calculado, e `65` a primeira em modo grafico.
 
 ## Arquivos da Fase 2
 
