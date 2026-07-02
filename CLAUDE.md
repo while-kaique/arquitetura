@@ -157,8 +157,8 @@ Sem senha (uso combinado, poucas pessoas); protecoes: teto de 100 KB, validacao
 leve (avisa+pede confirmacao se faltar `org 0x7c00`/`db 0xaa`), e escape de `& < >`
 (anti-XSS, ja que o texto e publico). Leitura tambem cai no KV em `/api/arq/{n}`.
 O indice lista as cadastradas ("Questoes cadastradas", badge `base` vs `turma`).
-> O KV existe **so na conta UFC** (`kaique-ufc`). A gocase nao tem esse binding
-> (e nao mexemos mais nela).
+> O KV existe **so na conta principal** (subdominio `arquiteturacomp`). A conta antiga
+> nao tem esse binding (e nao mexemos mais nela).
 
 **Disponibilidade em tempo real (planilha publica da turma).** Toda rota
 `/dev/{n}` consulta uma **planilha do Google** (compartilhada como "qualquer um
@@ -231,9 +231,9 @@ node build_worker.js   # regenera src/worker.js a partir dos .asm
 npx wrangler login     # so na 1a vez
 npx wrangler deploy
 ```
-URL publica (conta UFC): `https://arq-prova.kaique-ufc.workers.dev`.
-Existe tambem uma copia antiga em `https://arq-prova.kaique-rpa.workers.dev`
-(conta gocase) — **congelada, sem KV**; nao mexemos mais nela.
+URL publica: `https://arq-prova.arquiteturacomp.workers.dev`.
+Existe tambem uma copia antiga numa conta secundaria — **congelada, sem KV**;
+nao mexemos mais nela.
 
 **Setup do KV (uma vez por conta):** `npx wrangler kv namespace create arq-questoes`
 -> pega o `id` e poe no `wrangler.toml` como `[[kv_namespaces]] binding="KV" id="..."`.

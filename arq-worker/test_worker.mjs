@@ -15,7 +15,7 @@ const CANNED_SHEET = [
   '"6","PH",""',
   '"16","",""',
   '"30","(Reserva Max)",""',
-  '"50","(Reserva Kaique)",""',
+  '"50","(Reserva Arquitetura)",""',
   '"54","Tiago Juca",""',
 ].join("\n");
 const realFetch = globalThis.fetch;
@@ -156,7 +156,7 @@ ok(res.body.includes('class="tagpop tag-reserva"') && res.body.includes("(Reserv
 ok(!(await get("/dev/16")).body.includes('id="tagpop"'), "/dev/16 sem marcacao: sem tag");
 // 6f) questao assada mostra codigo + tag da planilha
 const b50 = await get("/dev/50");
-ok(b50.body.includes("copy con prova.asm") && b50.body.includes("tag-reserva") && b50.body.includes("Reserva Kaique"), "/dev/50 (assada) mostra codigo + tag reserva");
+ok(b50.body.includes("copy con prova.asm") && b50.body.includes("tag-reserva") && b50.body.includes("Reserva Arquitetura"), "/dev/50 (assada) mostra codigo + tag reserva");
 const b54 = await get("/dev/54");
 ok(b54.body.includes("tag-marcada") && b54.body.includes("Tiago Juca"), "/dev/54 (assada) mostra tag marcada");
 
