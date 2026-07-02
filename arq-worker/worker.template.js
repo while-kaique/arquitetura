@@ -403,10 +403,93 @@ const CMD_HEADER =
 // devPage(): IMITA o cmd.exe. Recebe o codigo cru (string) ou null (prompt vazio).
 // So a regiao do codigo e selecionavel; cabecalho/prompt tem user-select:none, entao
 // Ctrl+A -> Ctrl+C copia exatamente o assembly.
-function devPage(codigo, cls) {
+// ============ guia "como rodar" (embaixo do terminal, por questao) ============
+// O que cada questao pede/mostra quando roda (o resto do passo a passo e igual p/ todas).
+const GUIA_Q = {
+  "50": "Digite um <b>ano</b> (ex.: 2024) e tecle <b>Enter</b> &rarr; responde <b>BISSEXTO</b> ou <b>NAO BISSEXTO</b>.",
+  "54": "Digite um <b>numero</b> e tecle <b>Enter</b> &rarr; responde <b>TRIANGULAR</b> ou <b>NAO TRIANGULAR</b>.",
+  "55": "Digite um <b>numero</b> e tecle <b>Enter</b> &rarr; responde <b>PERFEITO</b> ou <b>NAO PERFEITO</b>.",
+  "65": "<b>Aperte teclas</b>: cada tecla pinta <b>1 pixel</b> no canto superior esquerdo (a cor vem do codigo da tecla). Os pixels sao pequenos — olhe de perto.",
+  "22": "Digite <b>4 numeros</b>, um por linha (Enter apos cada): <b>indice</b> da cor (0–255), <b>R</b>, <b>G</b>, <b>B</b> (0–63). Depois a tela mostra faixas com as 256 cores.",
+  "23": "Nao pede nada: aparece um <b>xadrez preto e branco</b> que fica <b>piscando</b> (invertendo as cores) sozinho.",
+};
+
+function cmdLine(cmd) {
+  const e = esc(cmd);
+  return `<div class="cmdline"><code>${e}</code><button class="cp" type="button" data-cmd="${e}">copiar</button></div>`;
+}
+
+function guiaHTML(n) {
+  if (!n) return "";
+  const oque = GUIA_Q[n] || "Rode e interaja conforme o enunciado da questao.";
+  return `<section class="guia" aria-label="como rodar este codigo">` +
+    `<h2>Como rodar este codigo (passo a passo)</h2>` +
+    `<p class="oque"><b>Nesta questao:</b> ${oque}</p>` +
+
+    `<h3>Passo 1 &middot; salvar o codigo</h3>` +
+    `<p>Aqui em cima: <b>Ctrl+A</b> (seleciona tudo) &rarr; <b>Ctrl+C</b> (copia). Cole no <b>Bloco de Notas</b> ` +
+    `e salve como <b>prova.asm</b>. No "Salvar como", troque <b>Tipo</b> para <b>Todos os arquivos</b> ` +
+    `(senao o Windows salva como <code>prova.asm.txt</code> e nao funciona). Guarde a pasta onde salvou.</p>` +
+
+    `<h3>Passo 2 &middot; montar (gera o programa)</h3>` +
+    `<p>Abra o <b>PowerShell na pasta do arquivo</b> (na pasta, segure <b>Shift</b> + clique com o botao direito &rarr; ` +
+    `"Abrir janela do PowerShell aqui") e rode:</p>` +
+    cmdLine("nasm -f bin prova.asm -o prova.bin") +
+    `<p>Se der "nasm nao e reconhecido": o NASM nao esta instalado/no PATH. Instale com ` +
+    `<code>winget install NASM.NASM</code>, feche e reabra o terminal.</p>` +
+
+    `<h3>Passo 3A &middot; rodar no QEMU (mais facil)</h3>` +
+    `<p>Um comando so — abre a janela ja executando:</p>` +
+    cmdLine("qemu-system-i386 -fda prova.bin") +
+    `<p>Para fechar, feche a janela do QEMU.</p>` +
+
+    `<h3>Passo 3B &middot; rodar no VirtualBox (o "dar play")</h3>` +
+    `<p>O VirtualBox nao roda o <code>.bin</code> direto — ele da boot num "disquete". ` +
+    `Primeiro gere a imagem do disquete (no PowerShell, mesma pasta):</p>` +
+    cmdLine("fsutil file createnew pad.img 1474048") +
+    cmdLine("copy /b prova.bin+pad.img prova.img") +
+    `<p>Isso cria o arquivo <b>prova.img</b>. Agora, no VirtualBox:</p>` +
+    `<ol>` +
+    `<li><b>Criar a maquina (so na 1ª vez):</b> clique em <b>Novo</b> &rarr; Nome: <code>prova</code> ` +
+    `&rarr; Tipo: <b>Other</b> &rarr; Versao: <b>Other/Unknown</b> &rarr; <b>Proximo</b> &rarr; ` +
+    `memoria pode deixar como esta &rarr; <b>Proximo</b> &rarr; marque <b>"Nao adicionar um disco rigido virtual"</b> &rarr; <b>Finalizar</b>.</li>` +
+    `<li><b>Anexar o disquete:</b> selecione a VM <code>prova</code> &rarr; <b>Configuracoes</b> (engrenagem) &rarr; <b>Armazenamento</b>. ` +
+    `Se nao houver uma "Controladora de Disquete", clique no icone pequeno <b>"Adiciona controladora"</b> (embaixo da arvore de armazenamento) e escolha <b>Controladora de Disquete (Floppy)</b>. ` +
+    `Selecione essa controladora e clique no icone <b>"Adiciona disquete"</b>; na janela que abre, use <b>Adicionar</b> (icone de pasta) para escolher o <b>prova.img</b> e confirme em <b>Escolher</b>.</li>` +
+    `<li><b>Pôr o disquete no topo do boot:</b> ainda em <b>Configuracoes</b> &rarr; <b>Sistema</b> &rarr; aba <b>Placa-mae</b> ` +
+    `&rarr; secao <b>Ordem de inicializacao</b>. <b>Marque a caixinha do "Disquete"</b> e, com ele selecionado, use a <b>seta &uarr;</b> ao lado da lista ` +
+    `para mover o <b>Disquete para o topo</b> (acima de Disco rigido e Optico). Clique <b>OK</b>.</li>` +
+    `<li><b>Rodar:</b> selecione a VM <code>prova</code> e clique em <b>Iniciar</b> (a seta verde). A maquina "liga pelo disquete" e executa seu programa.</li>` +
+    `<li><b>Mudou o codigo?</b> Refaca os comandos (<code>nasm</code> &rarr; <code>fsutil</code> &rarr; <code>copy</code>) e, na VM, use ` +
+    `<b>Maquina &rarr; Reiniciar</b> (ou feche a janela &rarr; "Desligar" &rarr; <b>Iniciar</b> de novo).</li>` +
+    `</ol>` +
+    `<p class="rodape">Guia de referencia — nao entra na selecao (o <b>Ctrl+A</b> ali em cima copia so o codigo).</p>` +
+    `</section>` +
+    `<script>document.querySelectorAll(".cp").forEach(function(b){b.addEventListener("click",function(){` +
+    `try{navigator.clipboard.writeText(b.dataset.cmd);}catch(e){}var t=b.textContent;b.textContent="copiado!";` +
+    `setTimeout(function(){b.textContent=t;},1200);});});</script>`;
+}
+
+const GUIA_CSS =
+  `.guia{max-width:820px;margin:0 auto;padding:26px 18px 64px;color:#d4d4d4;` +
+  `font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;` +
+  `border-top:2px solid #333;-webkit-user-select:none;user-select:none}` +
+  `.guia h2{color:#fff;font-size:1.25rem;margin:6px 0 12px}` +
+  `.guia h3{color:#dcdcaa;font-size:1.02rem;margin:20px 0 6px}` +
+  `.guia p{margin:6px 0}.guia code{background:#000;color:#9cdcfe;padding:1px 5px;border-radius:3px;font-family:Consolas,monospace}` +
+  `.guia ol{margin:8px 0 8px 20px}.guia li{margin:9px 0}` +
+  `.guia .oque{background:#12241a;border:1px solid #2a5c3a;border-radius:6px;padding:10px 12px;color:#cfe9d8}` +
+  `.cmdline{display:flex;align-items:center;gap:8px;background:#000;border:1px solid #333;border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto}` +
+  `.cmdline code{background:none;color:#9cdcfe;white-space:pre;flex:1 1 auto}` +
+  `.cmdline .cp{flex:0 0 auto;background:#2a2a2a;color:#ddd;border:1px solid #555;border-radius:4px;padding:3px 10px;font:inherit;font-size:.8rem;cursor:pointer}` +
+  `.cmdline .cp:hover{background:#3a3a3a;border-color:#6a9955}` +
+  `.guia .rodape{color:#888;font-size:.85rem;margin-top:18px}`;
+
+function devPage(codigo, cls, n) {
   const norm = codigo != null
     ? esc(String(codigo).replace(/\r\n/g, "\n").replace(/\n+$/, ""))
     : null;
+  const guia = norm != null ? guiaHTML(n) : "";
   const corpo = norm != null
     ? `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;copy con prova.asm\n</span>` +
       `<span class="code">${norm}</span>` +
@@ -424,7 +507,8 @@ function devPage(codigo, cls) {
     `-webkit-user-select:none;user-select:none}` +
     `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
     `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
-    `</style></head><body><div id="term">${corpo}</div>${tagHTML(cls)}</body></html>`;
+    (guia ? `#term{min-height:100vh}` + GUIA_CSS : ``) +
+    `</style></head><body><div id="term">${corpo}</div>${tagHTML(cls)}${guia}</body></html>`;
 }
 
 // formPage(): tela (estilo cmd) pra cadastrar o codigo de uma questao ainda inexistente.
@@ -560,7 +644,7 @@ async function handleDev(request, parts, kv) {
   // questao assada (50/54/55): sempre vence, imutavel — mostra o codigo + tag
   if (CODE[n]) {
     const variant = parts[2] === "full" ? "full" : "curto";
-    return new Response(devPage(CODE[n][variant], cls), { headers: HTM });
+    return new Response(devPage(CODE[n][variant], cls, n), { headers: HTM });
   }
 
   // id fora do padrao
@@ -578,7 +662,7 @@ async function handleDev(request, parts, kv) {
   if (request.method === "POST") {
     // WRITE-ONCE: se ja existe, ignora o envio e mostra o codigo que ja esta la
     if (existing && existing.value != null) {
-      return new Response(devPage(existing.value, cls), { headers: HTM });
+      return new Response(devPage(existing.value, cls, n), { headers: HTM });
     }
     // BLOQUEIO: questao SELECIONADA na planilha nao pode ser cadastrada
     if (cls && cls.tipo === "selecionada") {
@@ -626,12 +710,12 @@ async function handleDev(request, parts, kv) {
       return new Response(formPage(n, { cls, codigo, nome, erro: "Falha ao salvar. Tente de novo." }),
         { headers: HTM });
     }
-    return new Response(devPage(codeTrim, cls), { headers: HTM });
+    return new Response(devPage(codeTrim, cls, n), { headers: HTM });
   }
 
   // GET: mostra o codigo se ja existe
   if (existing && existing.value != null) {
-    return new Response(devPage(existing.value, cls), { headers: HTM });
+    return new Response(devPage(existing.value, cls, n), { headers: HTM });
   }
   // GET de questao SELECIONADA (ainda sem codigo) -> barra o cadastro
   if (cls && cls.tipo === "selecionada") {
@@ -663,7 +747,8 @@ function help() {
     `<tr><td><a href="/dev">/dev</a></td><td>Uma tela que <b>imita o Prompt de Comando</b> (cmd), vazia — só o cursor piscando.</td></tr>` +
     `<tr><td><a href="/dev/all">/dev/all</a></td><td>Lista simples com links pra <b>todas as questões</b>.</td></tr>` +
     `<tr><td><code>/dev/{id}</code></td><td>Abre a questão <code>{id}</code> nessa tela de cmd. ` +
-    `Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
+    `<b>Role a página pra baixo</b>: tem o <b>passo a passo detalhado de como rodar</b> (QEMU e VirtualBox, ` +
+    `onde clicar). Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
     `<tr><td><code>/api/arq/{id}</code></td><td>O código em <b>texto puro</b> (versão enxuta), sem o visual de cmd.</td></tr>` +
     `<tr><td><code>/req_full/{id}</code></td><td>Texto puro da versão <b>extensa</b>/comentada (quando existe).</td></tr>` +
     `</tbody></table>` +

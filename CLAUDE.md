@@ -149,6 +149,13 @@ com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
 | `/req_full/{q}` | versao **extensa** |
 | `/dev` | **terminal falso** (cmd.exe) vazio: so o prompt com cursor piscando |
 | `/dev/all` | lista simples (estilo cmd) com links pra todas as questoes (`all` e id reservado) |
+
+> Cada `/dev/{n}` que mostra codigo traz, **abaixo do terminal** (fora da tela inicial e
+> com `user-select:none`, entao Ctrl+A ainda copia so o codigo), um **guia "como rodar"**:
+> `guiaHTML(n)` = uma linha especifica da questao (`GUIA_Q[n]`: o que digitar/ver) + o passo a
+> passo compartilhado (salvar, `nasm`, QEMU, e VirtualBox click-a-click com ordem de boot).
+> Cada comando tem botao "copiar" (JS `navigator.clipboard`). `#term` recebe `min-height:100vh`
+> pra empurrar o guia p/ baixo da dobra e preservar o disfarce.
 | `/dev/{q}` | se `{q}` existe (assada **ou** cadastrada): terminal com o codigo. Se NAO existe: **formulario de cadastro** |
 | `/dev/{q}/full` | terminal falso com a versao **extensa** (so p/ as assadas) |
 | `POST /dev/{q}` | **salva** o codigo colado no KV (write-once) e mostra o terminal |

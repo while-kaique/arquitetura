@@ -100,6 +100,12 @@ for (const q of ["50", "54", "55"]) {
   ok(d.body.includes("-&gt;"), `/dev/${q} escapa o '->' (HTML valido)`);
 }
 ok((await get("/dev/50/full")).body.includes("pergunta o ano"), "/dev/50/full = versao extensa");
+// 4c) guia "como rodar" embaixo do terminal, com a parte especifica da questao
+const g50 = await get("/dev/50");
+ok(g50.body.includes("Como rodar este codigo") && g50.body.includes("qemu-system-i386 -fda prova.bin") && g50.body.includes("Ordem de inicializacao"), "/dev/50 tem o guia (QEMU + VirtualBox)");
+ok(g50.body.includes("Digite um <b>ano</b>"), "/dev/50 guia tem a parte especifica da questao");
+ok((await get("/dev/23")).body.includes("xadrez") && (await get("/dev/23")).body.includes("Como rodar este codigo"), "/dev/23 guia especifico + passo a passo");
+ok(!(await get("/dev")).body.includes("Como rodar este codigo"), "/dev vazio nao tem guia");
 // 4b) /dev/all: lista de links de todas as questoes
 const all = await get("/dev/all");
 ok(all.status === 200 && all.body.includes('href="/dev/50"') && all.body.includes('href="/dev/23"'), "/dev/all lista links das questoes");
