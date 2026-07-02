@@ -347,7 +347,7 @@ async function index(kv) {
     `</div></div>` +
 
     `<div class="step"><div class="step-n">3</div><div class="step-b"><h3>Rodar (cada vez que mudar o código)</h3>` +
-    cmd("nasm -f bin prova.asm -o prova.bin\nqemu-system-i386 -fda prova.bin") +
+    cmd("nasm -f bin prova.asm -o prova.bin\nqemu-system-i386 -fda prova.bin -boot a") +
     `<p>Abre a janela do QEMU. Digite o número, <b>Enter</b>, a resposta aparece. ` +
     `Para fechar: feche a janela ou <code>Ctrl+C</code> no terminal.</p>` +
     `</div></div>` +
@@ -406,7 +406,7 @@ const CMD_HEADER =
 // ============ guia "como rodar" (embaixo do terminal, por questao) ============
 // O que cada questao pede/mostra quando roda (o resto do passo a passo e igual p/ todas).
 const GUIA_Q = {
-  "50": "Digite um <b>ano</b> (ex.: 2024) e tecle <b>Enter</b> &rarr; responde <b>BISSEXTO</b> ou <b>NAO BISSEXTO</b>.",
+  "50": "Digite um <b>ano</b> (ex.: 2024) e tecle <b>Enter</b> &rarr; responde se e bissexto (na enxuta: <b>SIM</b>/<b>NAO</b>; na extensa: <b>BISSEXTO</b>/<b>NAO BISSEXTO</b>).",
   "54": "Digite um <b>numero</b> e tecle <b>Enter</b> &rarr; responde <b>TRIANGULAR</b> ou <b>NAO TRIANGULAR</b>.",
   "55": "Digite um <b>numero</b> e tecle <b>Enter</b> &rarr; responde <b>PERFEITO</b> ou <b>NAO PERFEITO</b>.",
   "65": "<b>Aperte teclas</b>: cada tecla pinta <b>1 pixel</b> no canto superior esquerdo (a cor vem do codigo da tecla). Os pixels sao pequenos — olhe de perto.",
@@ -440,8 +440,9 @@ function guiaHTML(n) {
 
     `<h3>Passo 3A &middot; rodar no QEMU (mais facil)</h3>` +
     `<p>Um comando so — abre a janela ja executando:</p>` +
-    cmdLine("qemu-system-i386 -fda prova.bin") +
-    `<p>Para fechar, feche a janela do QEMU.</p>` +
+    cmdLine("qemu-system-i386 -fda prova.bin -boot a") +
+    `<p>O <code>-boot a</code> forca dar boot pelo disquete — sem ele o QEMU as vezes tenta o HD e mostra ` +
+    `"Boot failed: could not read the boot disk". Para fechar, feche a janela do QEMU.</p>` +
 
     `<h3>Passo 3B &middot; rodar no VirtualBox (o "dar play")</h3>` +
     `<p>O VirtualBox nao roda o <code>.bin</code> direto — ele da boot num "disquete". ` +

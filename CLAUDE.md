@@ -94,8 +94,11 @@ por Disquete no topo da ordem de boot, Start. Instalacao:
 **QEMU (mais simples de rodar, se disponivel):**
 ```
 nasm -f bin prova.asm -o prova.bin
-qemu-system-i386 -fda prova.bin
+qemu-system-i386 -fda prova.bin -boot a
 ```
+> `-boot a` forca boot pelo disquete. TESTADO no QEMU 11: sem ele, as vezes o QEMU
+> tenta o HD e da "Boot failed: could not read the boot disk". Q23/Q50/Q22 rodaram
+> OK com `-boot a` (xadrez, "Digite o ano: 2024 -> SIM", e faixas de paleta).
 Instalacao (Windows): `winget install NASM.NASM` e
 `winget install SoftwareFreedomConservancy.QEMU`.
 Linux: `sudo apt update && sudo apt install nasm qemu-system-x86`.
@@ -260,7 +263,7 @@ Apagar uma questao cadastrada: `npx wrangler kv key delete --binding KV "q:{n}"`
 - **VirtualBox:** `nasm -f bin prova.asm -o prova.bin` -> `fsutil file createnew
   pad.img 1474048` -> `copy /b prova.bin+pad.img prova.img` -> anexar como
   disquete e dar boot.
-- **QEMU:** `nasm -f bin prova.asm -o prova.bin` -> `qemu-system-i386 -fda prova.bin`.
+- **QEMU:** `nasm -f bin prova.asm -o prova.bin` -> `qemu-system-i386 -fda prova.bin -boot a`.
 
 ## Possiveis proximas questoes (nao resolvidas)
 
