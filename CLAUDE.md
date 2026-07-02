@@ -152,6 +152,25 @@ O indice lista as cadastradas ("Questoes cadastradas", badge `base` vs `turma`).
 > O KV existe **so na conta UFC** (`kaique-ufc`). A gocase nao tem esse binding
 > (e nao mexemos mais nela).
 
+**Disponibilidade em tempo real (planilha publica da turma).** Toda rota
+`/dev/{n}` consulta uma **planilha do Google** (compartilhada como "qualquer um
+com o link: leitor") via export **CSV/gviz** — **sem chave/OAuth** (Opcao B). ID
+publico no codigo: `SHEET_ID` (`worker.template.js`), aba `gid=0`. Colunas: **A** =
+numero da questao, **B** = `DISPONIBILIDADE`. A funcao `_classificar(B)` retorna:
+`selecionada` (== "selecionada"), `reserva` (contem "reserva", qualquer variacao/
+capitalizacao/parenteses) ou `marcada` (qualquer outro texto = nome do dono);
+vazio -> `null`. Efeitos:
+> - **SELECIONADA** -> **barra o cadastro** (GET e POST devolvem `blockPage`, 403).
+> - **marcada** -> tag temporaria **MARCADA · {nome}** (nao barra, so avisa).
+> - **reserva** -> tag **RESERVA · {texto cru da celula}**.
+>
+> A tag e um overlay que **aparece ~5s e some via JS** (pra preservar o disfarce
+> de cmd); nao entra na selecao (`user-select:none`). Cache curto de **10s**
+> (`SHEET_TTL_MS`, cache de modulo) — "tempo real" na pratica sem estourar cota.
+> **Fail-open:** se a planilha falhar, usa o ultimo cache (ou nada) e segue — sem
+> tag e sem bloqueio. `_classificar` e exportado (`export`) so p/ os testes.
+> `test_worker.mjs` mocka `globalThis.fetch` p/ `docs.google.com` (CSV canned).
+
 **Modo terminal (`/dev`) — disfarce visual.** Pagina HTML que IMITA o Prompt de
 Comando do Windows (fundo `#0c0c0c`, fonte Consolas 16px cor `#cccccc`, cabecalho
 `Microsoft Windows [versao ...]`, prompt `C:\Users\User>copy con prova.asm` e um
@@ -168,8 +187,10 @@ CRLF->LF e escapa `& < >` (o assembly usa `->` nos comentarios) via `esc()`.
 - `worker.template.js` — roteamento (`fetch(request, env)`) + `index()` (async,
   guia VBox/QEMU + lista de cadastradas), `handleDev()` (GET mostra codigo/form,
   POST salva write-once), `devPage()` (terminal cmd), `formPage()` (form de
-  cadastro), `help()` (pagina de ajuda — manter em dia, convencao #3),
-  `listaCadastradas()`, `esc()`. Placeholders `__CODE_PLACEHOLDER__` /
+  cadastro), `blockPage()` (cadastro barrado p/ SELECIONADA), `help()` (pagina de
+  ajuda — manter em dia, convencao #3), `listaCadastradas()`, `esc()`, e a
+  integracao com a planilha (`getDisponibilidade()`/`parseCSV()`/`_classificar()`/
+  `tagHTML()`). Placeholders `__CODE_PLACEHOLDER__` /
   `__NOMES_PLACEHOLDER__`. O acesso ao KV e `env.KV` (com guarda: sem KV a feature
   desliga sozinha, e os testes rodam com um KV falso em memoria).
 - `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.

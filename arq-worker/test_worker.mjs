@@ -1,5 +1,5 @@
-// Teste rapido do worker: rotas + conteudo + cadastro no KV. Uso: node test_worker.mjs
-import worker from "./src/worker.js";
+// Teste rapido do worker: rotas + conteudo + cadastro no KV + planilha. Uso: node test_worker.mjs
+import worker, { _classificar } from "./src/worker.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -7,6 +7,24 @@ import { dirname, join } from "node:path";
 const DIR = dirname(fileURLToPath(import.meta.url));
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "  OK  " : "  FALHA ") + m); if (!c) fails++; };
+
+// mock da planilha (Google Sheets CSV) — intercepta o fetch do worker
+const CANNED_SHEET = [
+  '"Questões ","DISPONIBILIDADE ","Número de questões selecionadas"',
+  '"1","SELECIONADA","50"',
+  '"6","PH",""',
+  '"16","",""',
+  '"30","(Reserva Max)",""',
+  '"50","(Reserva Kaique)",""',
+  '"54","Tiago Juca",""',
+].join("\n");
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  if (String(url).includes("docs.google.com")) {
+    return new Response(CANNED_SHEET, { status: 200, headers: { "content-type": "text/csv" } });
+  }
+  return realFetch(url, init);
+};
 
 // KV falso em memoria (get/getWithMetadata/put/list) — mesma superficie usada pelo worker.
 function makeKV() {
@@ -114,6 +132,33 @@ const idx2 = await get("/");
 ok(idx2.body.includes('/dev/teste1') && idx2.body.includes("Questao de teste"), "indice lista a questao cadastrada");
 // 5i) id invalido -> 400
 ok((await get("/dev/a!b")).status === 400, "id invalido -> 400");
+
+// 6) disponibilidade (planilha)
+// 6a) classificacao
+ok(_classificar("SELECIONADA")?.tipo === "selecionada", "classifica SELECIONADA");
+ok(_classificar("(Reserva Max)")?.tipo === "reserva", "classifica reserva com parenteses");
+ok(_classificar("Reserva(Tiago Juca)")?.tipo === "reserva", "classifica reserva colada no nome");
+ok(_classificar("(reserva Henrique)")?.tipo === "reserva", "classifica reserva minuscula");
+ok(_classificar("PH")?.tipo === "marcada", "classifica nome como marcada");
+ok(_classificar("") === null && _classificar(undefined) === null, "vazio/undefined -> null");
+// 6b) SELECIONADA barra o cadastro (GET e POST)
+const sel = await get("/dev/1");
+ok(sel.status === 403 && sel.body.includes("SELECIONADA") && !sel.body.includes("<textarea"), "/dev/1 SELECIONADA barra cadastro");
+const selPost = await get("/dev/1", { body: { codigo: novo, nome: "x" } });
+ok(selPost.status === 403 && !(await get("/api/arq/1")).body.includes("hlt"), "POST em SELECIONADA nao salva");
+// 6c) marcada -> tag + nome, mas deixa cadastrar
+const marc = await get("/dev/6");
+ok(marc.body.includes('class="tagpop tag-marcada"') && marc.body.includes("PH") && marc.body.includes("<textarea"), "/dev/6 marcada: tag + nome + form");
+// 6d) reserva -> tag reserva com texto cru
+const res = await get("/dev/30");
+ok(res.body.includes('class="tagpop tag-reserva"') && res.body.includes("(Reserva Max)"), "/dev/30 reserva: tag + texto cru");
+// 6e) vazio -> sem tag (checa o elemento id="tagpop", nao o CSS .tagpop)
+ok(!(await get("/dev/16")).body.includes('id="tagpop"'), "/dev/16 sem marcacao: sem tag");
+// 6f) questao assada mostra codigo + tag da planilha
+const b50 = await get("/dev/50");
+ok(b50.body.includes("copy con prova.asm") && b50.body.includes("tag-reserva") && b50.body.includes("Reserva Kaique"), "/dev/50 (assada) mostra codigo + tag reserva");
+const b54 = await get("/dev/54");
+ok(b54.body.includes("tag-marcada") && b54.body.includes("Tiago Juca"), "/dev/54 (assada) mostra tag marcada");
 
 console.log(fails === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${fails} TESTE(S) FALHARAM`);
 process.exit(fails === 0 ? 0 : 1);
