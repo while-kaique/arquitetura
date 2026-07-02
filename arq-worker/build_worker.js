@@ -1,15 +1,17 @@
 // build_worker.js — gera src/worker.js embutindo os .asm de asm/.
 // Uso:  node build_worker.js
-// Le asm/{q}_{curto|full}.asm para q em {50,54,55}, injeta no worker.template.js.
+// Le asm/{q}_{curto|full}.asm para cada q em QUESTOES, injeta no worker.template.js.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const QUESTOES = {
+  "47": "Intercalar duas listas",
   "50": "Ano bissexto",
   "54": "Numero triangular",
   "55": "Numero perfeito",
+  "65": "Pixels VGA por tecla",
 };
 
 const CODE = {};

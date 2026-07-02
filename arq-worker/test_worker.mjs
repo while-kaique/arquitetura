@@ -67,14 +67,15 @@ ok(idx.body.includes("qemu-system-i386 -fda prova.bin"), "indice tem comando QEM
 ok((idx.body.match(/api\/arq\/50/g) || []).length >= 2, "tabela de links aparece nas duas opcoes");
 
 // 2) rotas de codigo (assadas) batem com os .asm de origem
-for (const q of ["50", "54", "55"]) {
+for (const q of ["47", "50", "54", "55", "65"]) {
   const curto = await get("/api/arq/" + q);
   const full = await get("/req_full/" + q);
   const srcCurto = readFileSync(join(DIR, "asm", `${q}_curto.asm`), "utf8");
   const srcFull = readFileSync(join(DIR, "asm", `${q}_full.asm`), "utf8");
   ok(curto.status === 200 && curto.body === srcCurto, `/api/arq/${q} == asm/${q}_curto.asm`);
   ok(full.status === 200 && full.body === srcFull, `/req_full/${q} == asm/${q}_full.asm`);
-  ok(curto.body.includes("mov sp, 0x7c00") && curto.body.includes("sti"), `Q${q} curto tem prologo VirtualBox`);
+  ok(curto.body.includes("mov sp, 0x7c00") && curto.body.includes("sti"), `Q${q} curto tem prologo robusto`);
+  ok(curto.body.includes("times 510 - ($ - $$) db 0") && curto.body.includes("db 0xaa"), `Q${q} curto termina com assinatura`);
 }
 
 // 3) rotas invalidas
