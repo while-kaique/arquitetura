@@ -104,26 +104,133 @@ function tagHTML(cls) {
     `setTimeout(function(){t.remove();},550);},4500);</script>`;
 }
 
-// ============================ pagina indice ============================
-function tabelaLinks() {
-  let rows = "";
-  for (const q of Object.keys(CODE)) {
-    rows += `<tr><td>${q}</td><td>${NOMES[q]}</td>` +
-      `<td><a href="/api/arq/${q}">/api/arq/${q}</a></td>` +
-      `<td><a href="/req_full/${q}">/req_full/${q}</a></td>` +
-      `<td><a href="/dev/${q}">enxuta</a> · <a href="/dev/${q}/full">extensa</a></td></tr>`;
-  }
-  return `<table><tr><th>Q</th><th>Questão</th><th>Enxuta (recomendada)</th>` +
-    `<th>Extensa (comentada)</th><th>Terminal</th></tr>${rows}</table>` +
-    `<p>Abra o link, <b>Ctrl+A</b> (selecionar tudo), <b>Ctrl+C</b>, cole no editor e ` +
-    `salve como <code>prova.asm</code>.</p>` +
-    `<p class=tip><b>Coluna Terminal:</b> abre o código numa tela <b>idêntica ao Prompt de ` +
-    `Comando</b> do Windows (fundo preto, fonte Consolas, cursor piscando). Dá ` +
-    `<b>Ctrl+A → Ctrl+C</b> direto que só o código é copiado (o cabeçalho e o prompt não ` +
-    `entram na seleção). É só visual — não roda nada, serve pra copiar com discrição.</p>`;
+// ==================== identidade visual (paginas publicas) ====================
+// "Datasheet de boot sector": papel tecnico claro, cabecalhos/comandos em mono,
+// corpo em sans, menu de bootloader e o selo 55 AA como assinatura. Compartilhado
+// por index() e help() via siteShell() — as telas /dev NAO usam isto (imitam cmd).
+// Ver arq-worker/DESIGN_SPEC.md. Regra: qualquer edicao nestas paginas segue esta
+// identidade (CLAUDE.md, convencao #4).
+const SITECSS = `
+:root{--paper:#EDF0F6;--panel:#fff;--ink:#161A22;--muted:#5B6270;--line:#D6DBE7;
+--accent:#1F3BE0;--accent-weak:#E9EDFC;--signal:#B96E16;--signal-weak:#FAF2E4;--ink-panel:#0E1220;--radius:14px;
+--sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+--mono:"Cascadia Code","Cascadia Mono",ui-monospace,"SF Mono",Consolas,"Liberation Mono",monospace}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+code{font-family:var(--mono);font-size:.86em;background:#E3E7F1;padding:1px 5px;border-radius:5px}
+b{font-weight:650}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+.statusbar{position:sticky;top:0;z-index:50;display:flex;gap:14px;align-items:center;justify-content:space-between;background:var(--ink-panel);color:#C3CBDA;font-family:var(--mono);font-size:.72rem;letter-spacing:.03em;padding:8px 18px;-webkit-user-select:none;user-select:none}
+.statusbar a{color:#C3CBDA;border-bottom:1px solid #38415c;padding-bottom:1px}
+.statusbar a:hover{color:#fff;text-decoration:none;border-color:#6a76a0}
+.sig{color:var(--signal);font-weight:700;letter-spacing:.12em}
+.hero{padding:64px 0 30px}
+.eyebrow{font-family:var(--mono);font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+.hero h1{font-family:var(--mono);font-weight:700;font-size:clamp(2.1rem,6.4vw,3.4rem);line-height:1.04;letter-spacing:-.03em;margin:0 0 18px}
+.lead{font-size:1.14rem;color:var(--muted);max-width:58ch;margin:0 0 22px}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin:0}
+.chip{font-family:var(--mono);font-size:.72rem;letter-spacing:.02em;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px}
+.section{padding:36px 0;border-top:1px solid var(--line)}
+.section-head{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:2px 0 8px}
+h2{font-family:var(--mono);font-weight:700;font-size:1.5rem;letter-spacing:-.01em;margin:0}
+h3{font-family:var(--mono);font-weight:650;font-size:1.05rem;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:66ch}
+.pill{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--signal);background:var(--signal-weak);border:1px solid #E7CFA0;padding:3px 9px;border-radius:999px}
+.locker{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin:6px 0 4px}
+.qcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;display:flex;flex-direction:column;gap:6px;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.qcard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(22,32,64,.10);border-color:var(--accent)}
+.qtop{display:flex;align-items:flex-start;justify-content:space-between}
+.num{font-family:var(--mono);font-weight:700;font-size:2.5rem;line-height:.95;letter-spacing:-.04em;min-width:0;overflow-wrap:anywhere}
+.qcard.word .num{font-size:1.5rem;align-self:flex-end}
+.tag{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:999px}
+.tag.base{color:#4a5568;background:#EAEDF3;border:1px solid var(--line)}
+.tag.turma{color:#1f6b3a;background:#E6F4EC;border:1px solid #BFE3CC}
+.qname{font-weight:600;font-size:1rem}
+.acts{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.acts a{font-family:var(--mono);font-size:.74rem;color:var(--accent);border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:#fff}
+.acts a:hover{text-decoration:none;border-color:var(--accent);background:var(--accent-weak)}
+.note{border-left:3px solid var(--accent);background:var(--accent-weak);padding:11px 15px;border-radius:0 10px 10px 0;margin:16px 0}
+.note.tip{border-left-color:var(--signal);background:var(--signal-weak)}
+.bootmenu{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0}
+.opt{position:relative;display:block;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;color:inherit;transition:transform .15s,box-shadow .15s,border-color .15s}
+.opt:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(22,32,64,.10);text-decoration:none;border-color:var(--accent)}
+.opt.default{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.opt .marker{font-family:var(--mono);color:var(--accent);font-weight:700;margin-right:6px}
+.opt .rec{float:right;font-family:var(--mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--signal);background:var(--signal-weak);border:1px solid #E7CFA0;padding:3px 9px;border-radius:999px}
+.opt .rec.alt{color:var(--muted);background:#EEF1F7;border-color:var(--line)}
+.opt h3{font-size:1.35rem;margin:10px 0 6px}
+.opt p{margin:0;color:var(--muted);font-size:.94rem}
+.step{display:flex;gap:16px;padding:16px 0;border-top:1px dashed var(--line)}
+.step:first-of-type{border-top:0;padding-top:6px}
+.step-n{flex:none;width:30px;height:30px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:.9rem;color:#fff;background:var(--accent);border-radius:9px}
+.step-b{min-width:0;flex:1}
+.step-b>p{margin:0 0 4px}
+.step-b ol{margin:8px 0 0;padding-left:20px}
+.step-b ol li{margin:4px 0}
+.cmd{position:relative;margin:12px 0}
+.cmd pre{margin:0;background:var(--ink-panel);color:#E7EBF4;font-family:var(--mono);font-size:.85rem;line-height:1.55;padding:14px 66px 14px 16px;border-radius:11px;overflow-x:auto;white-space:pre}
+.copy{position:absolute;top:9px;right:9px;font-family:var(--mono);font-size:.68rem;color:#C3CBDA;background:#20263B;border:1px solid #313a58;border-radius:8px;padding:5px 10px;cursor:pointer;transition:background .12s,color .12s}
+.copy:hover{background:#2b3352;color:#fff}
+.copy.done{color:#84e3a6;border-color:#2f5a44}
+.codelinks{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
+.codelink{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.cl-n{font-family:var(--mono);font-weight:700;font-size:1.05rem}
+.cl-name{color:var(--muted);font-size:.9rem}
+.codelink a{font-family:var(--mono);font-size:.74rem;border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.codelink a:hover{text-decoration:none;border-color:var(--accent);background:var(--accent-weak)}
+.mini{color:var(--muted);font-size:.9rem;margin:6px 0 0}
+table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.94rem}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:650}
+tbody tr:hover td{background:#F6F8FC}
+.foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:20px;padding:24px 20px 60px;color:var(--muted);font-family:var(--mono);font-size:.78rem}
+@media(max-width:640px){.bootmenu{grid-template-columns:1fr}.hero{padding:44px 0 24px}}
+@media(prefers-reduced-motion:no-preference){
+.reveal{opacity:0;transform:translateY(12px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
+.reveal.d1{animation-delay:.04s}.reveal.d2{animation-delay:.13s}.reveal.d3{animation-delay:.22s}
+@keyframes rise{to{opacity:1;transform:none}}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+`;
+
+// liga os botoes "copiar" ao <pre> vizinho (utilidade real; funciona sem framework)
+const COPYJS = `<script>(function(){var b=document.querySelectorAll(".copy");for(var i=0;i<b.length;i++){(function(x){x.addEventListener("click",function(){var p=x.parentNode.querySelector("pre");if(!p||!navigator.clipboard)return;navigator.clipboard.writeText(p.innerText).then(function(){x.textContent="copiado \\u2713";x.classList.add("done");setTimeout(function(){x.textContent="copiar";x.classList.remove("done");},1400);});});})(b[i]);}})();</script>`;
+
+// casca comum das paginas publicas: barra de status "POST", conteudo e rodape 55 AA.
+function siteShell(title, main, nav) {
+  return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>${title}</title><style>${SITECSS}</style></head><body>` +
+    `<div class="statusbar"><span><b class="sig">ARQ//x86</b> · boot sector 512B · <span class="sig">55 AA</span></span>` +
+    `<span>${nav || ""}</span></div>` +
+    `<main class="wrap">${main}</main>` +
+    `<footer class="foot"><span>fim do setor · <span class="sig">55 AA</span></span>` +
+    `<span>Arquitetura · Assembly x86 modo real</span></footer>${COPYJS}</body></html>`;
 }
 
-// lista "Questoes cadastradas": as assadas (50/54/55) + as da turma (KV)
+// bloco de comando com botao copiar (esc() protege &<> mesmo que hoje nao apareca)
+function cmd(code) {
+  return `<div class="cmd"><button class="copy" type="button" aria-label="copiar comando">copiar</button>` +
+    `<pre>${esc(code)}</pre></div>`;
+}
+
+// mini-cofre repetido no passo "pegar o codigo" de cada opcao (links das assadas)
+function codeLinks() {
+  let rows = "";
+  for (const q of Object.keys(CODE)) {
+    rows += `<div class="codelink"><span class="cl-n">${q}</span>` +
+      `<span class="cl-name">${esc(NOMES[q])}</span>` +
+      `<a href="/dev/${q}">terminal</a><a href="/api/arq/${q}">texto</a></div>`;
+  }
+  return `<div class="codelinks">${rows}</div>` +
+    `<p class="mini">Abra, <b>Ctrl+A → Ctrl+C</b>, cole e salve como <code>prova.asm</code>. ` +
+    `Todas (base + turma) estão no <a href="#cofre">cofre no topo</a>.</p>`;
+}
+
+// cofre "Questoes cadastradas": grade de cartoes — assadas (50/54/55) + turma (KV)
 async function listaCadastradas(kv) {
   const items = Object.keys(CODE).map((q) => ({ n: q, nome: NOMES[q], base: true }));
   if (kv) {
@@ -136,54 +243,68 @@ async function listaCadastradas(kv) {
       }
     } catch (e) { /* KV indisponivel: mostra so as assadas */ }
   }
-  const rows = items.map((it) =>
-    `<li><a href="/dev/${encodeURIComponent(it.n)}">/dev/${esc(it.n)}</a> — ${esc(it.nome)}` +
-    (it.base ? ` <span class=badge>base</span>` : ` <span class=badge2>turma</span>`) + `</li>`
-  ).join("");
-  return `<h2>Questões cadastradas</h2>` +
-    `<ul class=qlist>${rows}</ul>` +
-    `<p class=rec><b>Cadastrar uma questão nova:</b> acesse <code>/dev/SEU-NUMERO</code> ` +
-    `(um número ou nome ainda <b>não usado</b>), cole o código Assembly e salve. Ela passa a ` +
-    `abrir em <code>/dev/SEU-NUMERO</code> pra todo mundo. <b>Cada id só pode ser cadastrado ` +
-    `uma vez</b> — depois disso o código fica travado e não dá pra sobrescrever.</p>`;
+  const cards = items.map((it) => {
+    const id = encodeURIComponent(it.n);
+    const acts = `<a href="/dev/${id}">terminal</a><a href="/api/arq/${id}">texto</a>` +
+      (it.base ? `<a href="/dev/${id}/full">extensa</a>` : ``);
+    const word = /^[0-9]+$/.test(it.n) ? "" : " word"; // ids com letras: número menor
+    return `<div class="qcard${word}"><div class="qtop"><span class="num">${esc(it.n)}</span>` +
+      `<span class="tag ${it.base ? "base" : "turma"}">${it.base ? "base" : "turma"}</span></div>` +
+      `<div class="qname">${esc(it.nome)}</div><div class="acts">${acts}</div></div>`;
+  }).join("");
+  return `<section class="section" id="cofre"><p class="eyebrow">arquivo // pega o código</p>` +
+    `<div class="section-head"><h2>Questões cadastradas</h2></div>` +
+    `<p class="sub">Cada cartão abre num <b>terminal</b> (tela igual ao cmd, pra copiar com discrição), ` +
+    `em <b>texto</b> puro, ou na versão <b>extensa</b> comentada. Abra, <b>Ctrl+A → Ctrl+C</b> e cole.</p>` +
+    `<div class="locker">${cards}</div>` +
+    `<div class="note"><b>Cadastrar uma questão nova:</b> abra <code>/dev/SEU-ID</code> ` +
+    `(um número ou nome ainda <b>não usado</b>), cole o Assembly e salve — passa a abrir em ` +
+    `<code>/dev/SEU-ID</code> pra todo mundo. <b>Cada id só entra uma vez</b>; depois disso trava.</div>` +
+    `</section>`;
 }
 
 async function index(kv) {
-  const lista = await listaCadastradas(kv);
-  return `<!doctype html><meta charset=utf-8><title>Codigos de prova — Arquitetura</title>` +
-    `<style>body{font-family:monospace;max-width:860px;margin:40px auto;padding:0 16px;line-height:1.6;color:#111}` +
-    `table{border-collapse:collapse;width:100%;margin:8px 0}td,th{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}` +
-    `a{color:#06c}h1{font-size:1.5em}h2{font-size:1.2em;margin-top:1.8em;border-bottom:2px solid #333;padding-bottom:4px}` +
-    `h3{font-size:1.02em;margin-top:1.2em}pre{background:#f4f4f4;border:1px solid #ddd;padding:10px 12px;overflow-x:auto;border-radius:4px}` +
-    `code{background:#f4f4f4;padding:1px 4px;border-radius:3px}` +
-    `.tip{background:#fffae6;border:1px solid #f0e0a0;padding:8px 12px;border-radius:4px}` +
-    `.rec{background:#e9f7e9;border:1px solid #b9dfb9;padding:8px 12px;border-radius:4px}` +
-    `.qlist{list-style:none;margin:8px 0;padding:0}.qlist li{margin:5px 0}` +
-    `.badge{background:#555;color:#fff;font-size:.72em;padding:1px 7px;border-radius:9px;margin-left:6px}` +
-    `.badge2{background:#2a8c4a;color:#fff;font-size:.72em;padding:1px 7px;border-radius:9px;margin-left:6px}` +
-    `ol{margin:8px 0 8px 22px}ol li{margin:3px 0}</style>` +
+  const cofre = await listaCadastradas(kv);
+  const main =
+    // ===================== HERO =====================
+    `<section class="hero">` +
+    `<p class="eyebrow reveal d1">assembly x86 · modo real · boot sector</p>` +
+    `<h1 class="reveal d2">Pega o código.<br>Cola. Dá boot.</h1>` +
+    `<p class="lead reveal d3">Programas de 512 bytes que leem um número pelo teclado e ` +
+    `respondem na tela — sem sistema operacional. Escolha a questão, copie e rode no ` +
+    `VirtualBox ou no QEMU. Novo por aqui? Veja a <a href="/help">ajuda</a>.</p>` +
+    `<div class="chips reveal d3"><span class="chip">NASM + QEMU / VBox</span>` +
+    `<span class="chip">boot sector · 55 AA</span><span class="chip">até 65535</span></div>` +
+    `</section>` +
 
-    `<h1>Códigos de prova — Arquitetura (Assembly x86)</h1>` +
-    `<p>Programas de boot que leem um número pelo teclado e respondem na tela. ` +
-    `Escolha <b>um</b> dos dois caminhos abaixo e siga na ordem: <b>instalar → configurar → pegar e rodar o código</b>. ` +
-    `Novo aqui? Veja a <a href="/help">página de ajuda</a>.</p>` +
-    `<p class=rec>Os códigos já vêm na versão robusta (montam a pilha e ligam a interrupção do teclado), ` +
-    `então rodam nos dois. <b>Recomendado: VirtualBox</b> — é o mais provável no laboratório. ` +
-    `QEMU é o mais simples de rodar, se estiver disponível.</p>` +
+    // ===================== COFRE (destaque principal) =====================
+    cofre +
 
-    lista +
+    // ===================== MENU DE BOOT (escolha o caminho) =====================
+    `<section class="section"><p class="eyebrow">execução // escolha um caminho</p>` +
+    `<div class="section-head"><h2>Como rodar</h2></div>` +
+    `<p class="sub">Os códigos já montam a pilha e ligam a interrupção do teclado, então rodam ` +
+    `nos dois. Siga um caminho na ordem <b>instalar → configurar → pegar e rodar</b>.</p>` +
+    `<div class="bootmenu">` +
+    `<a class="opt default" href="#opcao-a"><span class="rec">recomendada</span>` +
+    `<h3><span class="marker">▶</span>VirtualBox</h3>` +
+    `<p>Mais provável no laboratório. Cria uma VM que dá boot pelo disquete.</p></a>` +
+    `<a class="opt" href="#opcao-b"><span class="rec alt">mais simples</span>` +
+    `<h3>QEMU</h3><p>Dá boot no binário direto, sem criar VM nem imagem de disquete.</p></a>` +
+    `</div></section>` +
 
     // ===================== OPCAO A — VIRTUALBOX =====================
-    `<h2>Opção A — VirtualBox (recomendada)</h2>` +
+    `<section class="section" id="opcao-a"><p class="eyebrow">caminho A</p>` +
+    `<div class="section-head"><h2>Opção A — VirtualBox</h2><span class="pill">recomendada</span></div>` +
 
-    `<h3>1. Instalar</h3>` +
+    `<div class="step"><div class="step-n">1</div><div class="step-b"><h3>Instalar</h3>` +
     `<p><b>Windows</b> (PowerShell):</p>` +
-    `<pre>winget install NASM.NASM
-winget install Oracle.VirtualBox</pre>` +
-    `<p class=tip>Depois de instalar, <b>feche e reabra o terminal</b> (pro PATH atualizar). ` +
-    `Alternativa manual: NASM em <code>nasm.us</code>, VirtualBox em <code>virtualbox.org</code>.</p>` +
+    cmd("winget install NASM.NASM\nwinget install Oracle.VirtualBox") +
+    `<div class="note tip">Depois de instalar, <b>feche e reabra o terminal</b> (pro PATH atualizar). ` +
+    `Alternativa manual: NASM em <code>nasm.us</code>, VirtualBox em <code>virtualbox.org</code>.</div>` +
+    `</div></div>` +
 
-    `<h3>2. Configurar a VM (só uma vez)</h3>` +
+    `<div class="step"><div class="step-n">2</div><div class="step-b"><h3>Configurar a VM (só uma vez)</h3>` +
     `<ol>` +
     `<li>Abra o VirtualBox → <b>Novo</b>.</li>` +
     `<li>Nome: <code>prova</code>. Tipo: <b>Other</b>. Versão: <b>Other/Unknown</b>. Avançar.</li>` +
@@ -193,51 +314,51 @@ winget install Oracle.VirtualBox</pre>` +
     `<li>Se não houver, clique em <b>Adicionar controladora → Controladora de Disquete</b>.</li>` +
     `<li>Na controladora de disquete, adicione um dispositivo de disquete (você anexa o <code>prova.img</code> no passo 3).</li>` +
     `<li><b>Configurações → Sistema → Placa-mãe → Ordem de inicialização</b>: marque <b>Disquete</b> e mova para o <b>topo</b>.</li>` +
-    `</ol>` +
+    `</ol></div></div>` +
 
-    `<h3>3. Montar a imagem e rodar (cada vez que mudar o código)</h3>` +
-    `<pre>nasm -f bin prova.asm -o prova.bin
-fsutil file createnew pad.img 1474048
-copy /b prova.bin+pad.img prova.img</pre>` +
+    `<div class="step"><div class="step-n">3</div><div class="step-b"><h3>Montar a imagem e rodar (cada vez que mudar o código)</h3>` +
+    cmd("nasm -f bin prova.asm -o prova.bin\nfsutil file createnew pad.img 1474048\ncopy /b prova.bin+pad.img prova.img") +
     `<p>Isso gera <code>prova.img</code> com <b>exatamente 1.44 MB</b> (o setor de boot no início). Depois:</p>` +
     `<ol>` +
     `<li>VirtualBox → <b>Configurações → Armazenamento</b> → clique no disquete → escolha o arquivo <code>prova.img</code>.</li>` +
     `<li><b>Start</b> (se já estava rodando, use <b>Reset</b> para recarregar o novo código).</li>` +
     `<li>Digite o número, aperte <b>Enter</b>, a resposta aparece.</li>` +
-    `</ol>` +
+    `</ol></div></div>` +
 
-    `<h3>4. Pegar o código</h3>` +
-    tabelaLinks() +
+    `<div class="step"><div class="step-n">4</div><div class="step-b"><h3>Pegar o código</h3>` +
+    codeLinks() + `</div></div></section>` +
 
     // ===================== OPCAO B — QEMU =====================
-    `<h2>Opção B — QEMU (mais simples de rodar)</h2>` +
+    `<section class="section" id="opcao-b"><p class="eyebrow">caminho B</p>` +
+    `<div class="section-head"><h2>Opção B — QEMU</h2><span class="pill">mais simples</span></div>` +
 
-    `<h3>1. Instalar</h3>` +
+    `<div class="step"><div class="step-n">1</div><div class="step-b"><h3>Instalar</h3>` +
     `<p><b>Windows</b> (PowerShell):</p>` +
-    `<pre>winget install NASM.NASM
-winget install SoftwareFreedomConservancy.QEMU</pre>` +
+    cmd("winget install NASM.NASM\nwinget install SoftwareFreedomConservancy.QEMU") +
     `<p><b>Linux</b> (Debian/Ubuntu):</p>` +
-    `<pre>sudo apt update
-sudo apt install nasm qemu-system-x86</pre>` +
-    `<p class=tip>No Windows, feche e reabra o terminal depois de instalar. Se <code>qemu-system-i386</code> ` +
-    `não for reconhecido, use o caminho completo (costuma ficar em <code>C:\\Program Files\\qemu\\</code>).</p>` +
+    cmd("sudo apt update\nsudo apt install nasm qemu-system-x86") +
+    `<div class="note tip">No Windows, feche e reabra o terminal depois de instalar. Se ` +
+    `<code>qemu-system-i386</code> não for reconhecido, use o caminho completo ` +
+    `(costuma ficar em <code>C:\\Program Files\\qemu\\</code>).</div>` +
+    `</div></div>` +
 
-    `<h3>2. Configurar</h3>` +
-    `<p><b>Nada a configurar.</b> O QEMU boota o binário direto, sem criar VM nem imagem de disquete.</p>` +
+    `<div class="step"><div class="step-n">2</div><div class="step-b"><h3>Configurar</h3>` +
+    `<p><b>Nada a configurar.</b> O QEMU dá boot no binário direto, sem criar VM nem imagem de disquete.</p>` +
+    `</div></div>` +
 
-    `<h3>3. Rodar (cada vez que mudar o código)</h3>` +
-    `<pre>nasm -f bin prova.asm -o prova.bin
-qemu-system-i386 -fda prova.bin</pre>` +
+    `<div class="step"><div class="step-n">3</div><div class="step-b"><h3>Rodar (cada vez que mudar o código)</h3>` +
+    cmd("nasm -f bin prova.asm -o prova.bin\nqemu-system-i386 -fda prova.bin") +
     `<p>Abre a janela do QEMU. Digite o número, <b>Enter</b>, a resposta aparece. ` +
     `Para fechar: feche a janela ou <code>Ctrl+C</code> no terminal.</p>` +
+    `</div></div>` +
 
-    `<h3>4. Pegar o código</h3>` +
-    tabelaLinks() +
+    `<div class="step"><div class="step-n">4</div><div class="step-b"><h3>Pegar o código</h3>` +
+    codeLinks() + `</div></div></section>` +
 
     // ===================== PROBLEMAS COMUNS =====================
-    `<h2>Problemas comuns</h2>` +
-    `<table>` +
-    `<tr><th>Sintoma</th><th>Causa / solução</th></tr>` +
+    `<section class="section"><p class="eyebrow">quando não roda</p>` +
+    `<div class="section-head"><h2>Problemas comuns</h2></div>` +
+    `<table><thead><tr><th>Sintoma</th><th>Causa / solução</th></tr></thead><tbody>` +
     `<tr><td><code>nasm</code> não reconhecido</td><td>NASM não instalado ou PATH não atualizado. Reabra o terminal ou use o caminho completo do exe.</td></tr>` +
     `<tr><td>(VBox) <code>FATAL: No bootable medium found!</code></td><td>O disquete não está anexado ou não está no topo da ordem de boot. Ajuste em <b>Armazenamento</b> (anexar <code>prova.img</code>) e <b>Sistema → Ordem de inicialização</b> (Disquete no topo).</td></tr>` +
     `<tr><td>(VBox) não aparece onde anexar disquete</td><td>Adicione uma <b>Controladora de Disquete</b> em Configurações → Armazenamento.</td></tr>` +
@@ -246,8 +367,12 @@ qemu-system-i386 -fda prova.bin</pre>` +
     `<tr><td>Janela abre preta / não dá boot</td><td>O arquivo precisa terminar com <code>times 510-($-$$) db 0</code>, <code>db 0x55</code>, <code>db 0xaa</code>. Não apague essas linhas ao copiar.</td></tr>` +
     `<tr><td>Não aparece o que eu digito</td><td>Normal; o eco vem do <code>int 0x10</code> dentro do <code>geti</code>. A resposta aparece após o Enter.</td></tr>` +
     `<tr><td>Resposta errada</td><td>Funciona com números até 65535 (16 bits). Não use números maiores.</td></tr>` +
-    `</table>` +
-    `<p class=tip>Se der problema, copie esta página inteira + a mensagem de erro do terminal e mande para uma IA — tem tudo que ela precisa para ajudar.</p>`;
+    `</tbody></table>` +
+    `<div class="note tip">Se der problema, copie esta página inteira + a mensagem de erro do ` +
+    `terminal e mande para uma IA — tem tudo que ela precisa para ajudar.</div>` +
+    `</section>`;
+
+  return siteShell("Códigos de prova — Arquitetura x86", main, `<a href="/help">ajuda ↗</a>`);
 }
 
 // ============================ paginas "cmd" ============================
@@ -480,77 +605,76 @@ async function handleDev(request, parts, kv) {
 // IMPORTANTE: mantenha esta pagina em dia. Toda vez que mudar rota ou fluxo do
 // site, atualize help() (regra registrada no CLAUDE.md).
 function help() {
-  return `<!doctype html><meta charset=utf-8><title>Ajuda — Códigos de prova</title>` +
-    `<style>body{font-family:monospace;max-width:820px;margin:40px auto;padding:0 16px;line-height:1.6;color:#111}` +
-    `h1{font-size:1.5em}h2{font-size:1.15em;margin-top:1.8em;border-bottom:2px solid #333;padding-bottom:4px}` +
-    `a{color:#06c}code{background:#f4f4f4;padding:1px 5px;border-radius:3px}` +
-    `table{border-collapse:collapse;width:100%;margin:10px 0}td,th{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}` +
-    `ol,ul{margin:8px 0 8px 22px}li{margin:4px 0}` +
-    `.aviso{background:#fffae6;border:1px solid #f0e0a0;padding:8px 12px;border-radius:4px}` +
-    `.lead{background:#eef4ff;border:1px solid #cdddf7;padding:8px 12px;border-radius:4px}</style>` +
+  const main =
+    `<section class="hero">` +
+    `<p class="eyebrow reveal d1">manual // referência</p>` +
+    `<h1 class="reveal d2">Ajuda</h1>` +
+    `<p class="lead reveal d3">Guia rápido de <b>como usar o site</b>: ver, copiar e cadastrar ` +
+    `códigos de prova em Assembly x86 (programas de boot que leem um número pelo teclado e ` +
+    `respondem na tela). O passo a passo de instalar e rodar (NASM + VirtualBox/QEMU) está na ` +
+    `<a href="/">página inicial</a>.</p></section>` +
 
-    `<h1>Ajuda — como usar o site</h1>` +
-    `<p class=lead>Este site guarda <b>códigos de prova em Assembly x86</b> (programas de boot que ` +
-    `leem um número pelo teclado e respondem na tela). Serve pra <b>ver</b> um código, <b>copiar</b> ` +
-    `e <b>cadastrar</b> códigos novos. O passo a passo de instalar (NASM + VirtualBox/QEMU) e rodar ` +
-    `está na <a href="/">página inicial</a>.</p>` +
-
-    `<h2>Páginas principais</h2>` +
-    `<table>` +
-    `<tr><th>Endereço</th><th>O que é</th></tr>` +
-    `<tr><td><a href="/">/</a></td><td>Página inicial: guia de instalação (VirtualBox e QEMU), ` +
-    `lista de <b>questões cadastradas</b> e as tabelas de links.</td></tr>` +
+    `<section class="section"><p class="eyebrow">mapa</p>` +
+    `<div class="section-head"><h2>Páginas principais</h2></div>` +
+    `<table><thead><tr><th>Endereço</th><th>O que é</th></tr></thead><tbody>` +
+    `<tr><td><a href="/">/</a></td><td>Página inicial: cofre de <b>questões cadastradas</b>, ` +
+    `menu de instalação (VirtualBox e QEMU) e problemas comuns.</td></tr>` +
     `<tr><td><a href="/help">/help</a></td><td>Esta ajuda.</td></tr>` +
     `<tr><td><a href="/dev">/dev</a></td><td>Uma tela que <b>imita o Prompt de Comando</b> (cmd), vazia — só o cursor piscando.</td></tr>` +
     `<tr><td><code>/dev/{id}</code></td><td>Abre a questão <code>{id}</code> nessa tela de cmd. ` +
     `Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
     `<tr><td><code>/api/arq/{id}</code></td><td>O código em <b>texto puro</b> (versão enxuta), sem o visual de cmd.</td></tr>` +
     `<tr><td><code>/req_full/{id}</code></td><td>Texto puro da versão <b>extensa</b>/comentada (quando existe).</td></tr>` +
-    `</table>` +
-    `<p>Exemplos prontos: <a href="/dev/50">/dev/50</a> (bissexto), <a href="/dev/54">/dev/54</a> ` +
-    `(triangular), <a href="/dev/55">/dev/55</a> (perfeito).</p>` +
+    `</tbody></table>` +
+    `<p class="sub">Exemplos prontos: <a href="/dev/50">/dev/50</a> (bissexto), ` +
+    `<a href="/dev/54">/dev/54</a> (triangular), <a href="/dev/55">/dev/55</a> (perfeito).</p></section>` +
 
-    `<h2>Como ver uma questão</h2>` +
-    `<ol>` +
-    `<li>Na <a href="/">página inicial</a>, olhe a lista <b>Questões cadastradas</b> e clique no link (ex.: <code>/dev/50</code>).</li>` +
-    `<li>Abre uma tela <b>igual ao Prompt de Comando</b> com o código. Aperte <b>Ctrl+A</b> e <b>Ctrl+C</b>: ` +
-    `copia <b>só o código</b> (o cabeçalho e o prompt não entram na seleção).</li>` +
-    `<li>Cole no seu editor, salve como <code>prova.asm</code> e monte/rode (guia completo na página inicial).</li>` +
-    `</ol>` +
-    `<p>Prefere sem o visual de cmd? Use <code>/api/arq/{id}</code> pra pegar o texto puro.</p>` +
+    `<section class="section"><p class="eyebrow">fluxo</p>` +
+    `<div class="section-head"><h2>Como ver uma questão</h2></div>` +
+    `<div class="step"><div class="step-n">1</div><div class="step-b">` +
+    `<p>Na <a href="/">página inicial</a>, ache a questão no cofre <b>Questões cadastradas</b> e clique em <b>terminal</b> (ex.: <code>/dev/50</code>).</p></div></div>` +
+    `<div class="step"><div class="step-n">2</div><div class="step-b">` +
+    `<p>Abre uma tela <b>igual ao Prompt de Comando</b> com o código. Aperte <b>Ctrl+A</b> e <b>Ctrl+C</b>: ` +
+    `copia <b>só o código</b> (o cabeçalho e o prompt não entram na seleção).</p></div></div>` +
+    `<div class="step"><div class="step-n">3</div><div class="step-b">` +
+    `<p>Cole no seu editor, salve como <code>prova.asm</code> e monte/rode (guia completo na página inicial).</p></div></div>` +
+    `<div class="note">Prefere sem o visual de cmd? Use <code>/api/arq/{id}</code> pra pegar o texto puro.</div></section>` +
 
-    `<h2>Como cadastrar uma questão nova</h2>` +
-    `<ol>` +
-    `<li>Acesse <code>/dev/</code> seguido de um <b>id ainda não usado</b> — ex.: <code>/dev/60</code> ou ` +
-    `<code>/dev/fibonacci</code>. (letras, números, <code>-</code> e <code>_</code>, até 40 caracteres.)</li>` +
-    `<li>Como não existe ainda, aparece um <b>formulário</b>. Cole o código Assembly, dê um nome (opcional) ` +
-    `e clique em <b>Salvar</b>.</li>` +
-    `<li>Pronto: a questão passa a abrir em <code>/dev/SEU-ID</code> <b>pra todo mundo</b> e entra na lista ` +
-    `da página inicial.</li>` +
-    `</ol>` +
-    `<p class=aviso><b>Só dá pra cadastrar uma vez.</b> Depois de salvo, o id fica <b>travado</b> — ninguém ` +
-    `sobrescreve (as questões base <code>50</code>/<code>54</code>/<code>55</code> também são protegidas assim).</p>` +
-    `<p><b>Regras do código:</b> deve ser um boot sector completo — começa com <code>org 0x7c00</code> e ` +
+    `<section class="section"><p class="eyebrow">fluxo</p>` +
+    `<div class="section-head"><h2>Como cadastrar uma questão nova</h2></div>` +
+    `<div class="step"><div class="step-n">1</div><div class="step-b">` +
+    `<p>Acesse <code>/dev/</code> seguido de um <b>id ainda não usado</b> — ex.: <code>/dev/60</code> ou ` +
+    `<code>/dev/fibonacci</code> (letras, números, <code>-</code> e <code>_</code>, até 40 caracteres).</p></div></div>` +
+    `<div class="step"><div class="step-n">2</div><div class="step-b">` +
+    `<p>Como não existe ainda, aparece um <b>formulário</b>. Cole o código Assembly, dê um nome (opcional) e clique em <b>Salvar</b>.</p></div></div>` +
+    `<div class="step"><div class="step-n">3</div><div class="step-b">` +
+    `<p>Pronto: a questão passa a abrir em <code>/dev/SEU-ID</code> <b>pra todo mundo</b> e entra no cofre da página inicial.</p></div></div>` +
+    `<div class="note tip"><b>Só dá pra cadastrar uma vez.</b> Depois de salvo, o id fica <b>travado</b> — ninguém ` +
+    `sobrescreve (as questões base <code>50</code>/<code>54</code>/<code>55</code> também são protegidas assim).</div>` +
+    `<p class="sub"><b>Regras do código:</b> deve ser um boot sector completo — começa com <code>org 0x7c00</code> e ` +
     `termina com <code>times 510-($-$$) db 0</code> / <code>db 0x55</code> / <code>db 0xaa</code>. ` +
-    `Tamanho máximo 100 KB. Se faltar a assinatura de boot, o site <b>avisa</b> e pede confirmação antes de salvar.</p>` +
+    `Tamanho máximo 100 KB. Se faltar a assinatura de boot, o site <b>avisa</b> e pede confirmação antes de salvar.</p></section>` +
 
-    `<h2>Disponibilidade das questões (planilha da turma)</h2>` +
-    `<p>Ao abrir <code>/dev/{id}</code>, o site consulta a planilha da turma <b>em tempo real</b> e ` +
+    `<section class="section"><p class="eyebrow">planilha da turma</p>` +
+    `<div class="section-head"><h2>Disponibilidade das questões</h2></div>` +
+    `<p class="sub">Ao abrir <code>/dev/{id}</code>, o site consulta a planilha da turma <b>em tempo real</b> e ` +
     `mostra um aviso rápido (some em ~5s pra não atrapalhar):</p>` +
     `<ul>` +
     `<li><b>MARCADA · nome</b> — alguém já marcou essa questão como sua.</li>` +
     `<li><b>RESERVA · ...</b> — é reserva de alguém (mostra o texto como está na planilha).</li>` +
     `<li><b>SELECIONADA</b> — questão fora da prova: <b>não pode ser cadastrada</b> (o cadastro é barrado).</li>` +
     `</ul>` +
-    `<p>Serve pra ninguém pegar uma questão que já é de outra pessoa (não pode repetir na prova).</p>` +
+    `<p class="sub">Serve pra ninguém pegar uma questão que já é de outra pessoa (não pode repetir na prova).</p></section>` +
 
-    `<h2>Bom saber</h2>` +
+    `<section class="section"><p class="eyebrow">bom saber</p>` +
+    `<div class="section-head"><h2>Detalhes</h2></div>` +
     `<ul>` +
     `<li>O modo terminal é <b>só visual</b> — não executa nada. Serve pra ler e copiar o código com discrição.</li>` +
     `<li>Os programas funcionam com números até <b>65535</b> (aritmética de 16 bits).</li>` +
     `<li>Problemas ao montar/rodar? A página inicial tem uma tabela de <b>problemas comuns</b>.</li>` +
-    `</ul>` +
-    `<p><a href="/">← voltar para a página inicial</a></p>`;
+    `</ul></section>`;
+
+  return siteShell("Ajuda — Códigos de prova x86", main, `<a href="/">← início</a>`);
 }
 
 export default {

@@ -23,6 +23,14 @@ Este repositorio tem DUAS fases distintas. Leia a que for relevante.
    rota, fluxo ou funcionalidade do site, atualize a funcao `help()` em
    `arq-worker/worker.template.js` (e o teste de `/help`) no mesmo trabalho.
    O `/help` deve sempre refletir o que o site realmente faz.
+4. **Sempre seguir a identidade visual nas paginas publicas.** As paginas que
+   NAO sao do `/dev` (indice `/` e ajuda `/help`) seguem o design "datasheet de
+   boot sector": papel claro e frio, cabecalhos/comandos em mono e corpo em sans,
+   as duas opcoes como menu de bootloader e o selo `55 AA` como assinatura.
+   Qualquer edicao nessas paginas deve manter essa identidade — CSS em `SITECSS`,
+   casca compartilhada em `siteShell()`, blocos de comando via `cmd()`. Referencia
+   completa em `arq-worker/DESIGN_SPEC.md`. As telas `/dev` (`devPage`/`formPage`/
+   `blockPage`) tem OUTRA identidade (imitam o cmd) — nao misturar as duas.
 
 ---
 
@@ -185,19 +193,27 @@ CRLF->LF e escapa `& < >` (o assembly usa `->` nos comentarios) via `esc()`.
 **Estrutura (o worker.js e GERADO — nao editar na mao):**
 - `asm/{q}_{curto|full}.asm` — as **fontes** de verdade dos 6 programas.
 - `worker.template.js` — roteamento (`fetch(request, env)`) + `index()` (async,
-  guia VBox/QEMU + lista de cadastradas), `handleDev()` (GET mostra codigo/form,
-  POST salva write-once), `devPage()` (terminal cmd), `formPage()` (form de
-  cadastro), `blockPage()` (cadastro barrado p/ SELECIONADA), `help()` (pagina de
-  ajuda — manter em dia, convencao #3), `listaCadastradas()`, `esc()`, e a
-  integracao com a planilha (`getDisponibilidade()`/`parseCSV()`/`_classificar()`/
-  `tagHTML()`). Placeholders `__CODE_PLACEHOLDER__` /
-  `__NOMES_PLACEHOLDER__`. O acesso ao KV e `env.KV` (com guarda: sem KV a feature
-  desliga sozinha, e os testes rodam com um KV falso em memoria).
+  hero + cofre de questoes + menu de boot VBox/QEMU + passos + problemas comuns),
+  `handleDev()` (GET mostra codigo/form, POST salva write-once), `devPage()`
+  (terminal cmd), `formPage()` (form de cadastro), `blockPage()` (cadastro barrado
+  p/ SELECIONADA), `help()` (pagina de ajuda — manter em dia, convencao #3),
+  `listaCadastradas()` (grade de cartoes do cofre), `esc()`, e a integracao com a
+  planilha (`getDisponibilidade()`/`parseCSV()`/`_classificar()`/`tagHTML()`).
+  **Identidade visual das paginas publicas** (`/` e `/help`, convencao #4):
+  `SITECSS` (tokens + CSS do design "datasheet"), `siteShell()` (casca: barra de
+  status, main, rodape `55 AA` + `COPYJS`), `cmd()` (bloco de comando com botao
+  copiar) e `codeLinks()` (mini-cofre repetido no passo "pegar o codigo"). As
+  telas `/dev` usam `CMDCSS` (outra identidade). Placeholders
+  `__CODE_PLACEHOLDER__` / `__NOMES_PLACEHOLDER__`. O acesso ao KV e `env.KV` (com
+  guarda: sem KV a feature desliga sozinha, e os testes rodam com um KV falso em
+  memoria).
 - `build_worker.js` — le os `.asm`, embute e gera `src/worker.js`.
   Rodar: `node build_worker.js`.
 - `test_worker.mjs` — testa rotas e confere que o servido == os `.asm`.
   Rodar: `node test_worker.mjs`.
 - `src/worker.js` — **gerado**, nao editar.
+- `DESIGN_SPEC.md` — brief + tokens (cor/tipo/layout) da identidade visual das
+  paginas publicas (`/` e `/help`). Ler antes de mexer no visual (convencao #4).
 - `wrangler.toml` / `package.json` (`type: module`; scripts `dev`/`deploy`).
 
 **Editar codigos:** edite o `.asm` em `asm/`, rode `node build_worker.js`, depois
