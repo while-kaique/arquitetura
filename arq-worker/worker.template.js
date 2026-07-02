@@ -507,11 +507,51 @@ function blockPage(n, cls) {
 }
 
 // ============================ /dev handler ============================
+// devAll(): lista simples (estilo cmd) com links pra todas as questoes.
+async function devAll(kv) {
+  const items = Object.keys(CODE).map((q) => ({ n: q, nome: NOMES[q], base: true }));
+  if (kv) {
+    try {
+      const { keys = [] } = await kv.list({ prefix: KV_PREFIX });
+      for (const k of keys) {
+        const n = k.name.slice(KV_PREFIX.length);
+        if (CODE[n]) continue;
+        items.push({ n, nome: (k.metadata && k.metadata.nome) || ("Questão " + n), base: false });
+      }
+    } catch (e) { /* fail-open */ }
+  }
+  items.sort((a, b) => {
+    const na = parseInt(a.n, 10), nb = parseInt(b.n, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a.n).localeCompare(String(b.n));
+  });
+  const linhas = items.map((it) =>
+    `<a href="/dev/${encodeURIComponent(it.n)}">/dev/${esc(it.n)}</a>  —  ${esc(it.nome)}` +
+    (it.base ? "" : "  (turma)")
+  ).join("\n");
+  return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>C:\\Windows\\System32\\cmd.exe</title>` +
+    `<style>` + CMDCSS +
+    `#term a{color:#9cdcfe;text-decoration:none}#term a:hover{text-decoration:underline}` +
+    `.caret{display:inline-block;width:.55em;height:1.05em;background:var(--fg);` +
+    `vertical-align:text-bottom;margin-left:1px;animation:cmdblink 1.06s steps(1,end) infinite}` +
+    `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
+    `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
+    `</style></head><body><div id="term">` +
+    `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;dir /b questoes\\\n\n</span>` +
+    linhas + `\n\n<span class="chrome">C:\\Users\\User&gt;</span>` +
+    `<span class="caret" aria-hidden="true"></span></div></body></html>`;
+}
+
 async function handleDev(request, parts, kv) {
   const n = parts[1] || null;
 
   // /dev  -> prompt vazio piscando (nao precisa consultar a planilha)
   if (!n) return new Response(devPage(null, null), { headers: HTM });
+
+  // /dev/all -> lista de todas as questoes (links simples)
+  if (n === "all") return new Response(await devAll(kv), { headers: HTM });
 
   // disponibilidade da planilha (tempo real, com cache curto; fail-open)
   const dispMap = await getDisponibilidade();
@@ -621,6 +661,7 @@ function help() {
     `menu de instalação (VirtualBox e QEMU) e problemas comuns.</td></tr>` +
     `<tr><td><a href="/help">/help</a></td><td>Esta ajuda.</td></tr>` +
     `<tr><td><a href="/dev">/dev</a></td><td>Uma tela que <b>imita o Prompt de Comando</b> (cmd), vazia — só o cursor piscando.</td></tr>` +
+    `<tr><td><a href="/dev/all">/dev/all</a></td><td>Lista simples com links pra <b>todas as questões</b>.</td></tr>` +
     `<tr><td><code>/dev/{id}</code></td><td>Abre a questão <code>{id}</code> nessa tela de cmd. ` +
     `Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
     `<tr><td><code>/api/arq/{id}</code></td><td>O código em <b>texto puro</b> (versão enxuta), sem o visual de cmd.</td></tr>` +

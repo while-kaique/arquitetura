@@ -112,13 +112,16 @@ assinatura `55 aa`):
 
 | Q | Nome | Logica |
 |---|------|--------|
+| `22` | Atualizar paleta VGA | le indice,R,G,B; atualiza a cor via portas do DAC (`out 0x3C8/0x3C9`); desenha 256 cores x 10px = 2560 pixels |
+| `23` | Xadrez que pisca | modo 13h; pinta xadrez (toggle `xor al,15` + flip por linha) e fica invertendo tudo (`xor byte [es:di],15`) com pausa `int 15h`/86h |
 | `50` | Ano bissexto | divisivel por 400 -> sim; senao por 100 -> nao; senao por 4 -> sim |
 | `54` | Numero triangular | testa `k*(k+1)*(k+2)` para k=1,2,... ate igualar/passar de n |
 | `55` | Numero perfeito | soma divisores proprios (1..n-1); perfeito se soma == n |
 | `65` | Pixels VGA por tecla | modo grafico 13h (`int 0x10`); cada tecla (`int 0x16`) faz `stosb` na memoria de video (`0xA000`), cor = byte da tecla, pixel 0,1,2,... |
 
-> `65` e a mais curta (~18 linhas) e a unica em modo grafico; `50/54/55` so
-> imprimem texto fixo.
+> Graficas (modo 13h): `22`, `23`, `65`. Texto: `50/54/55`. `65` e a mais curta
+> (~18 linhas). Padrao comum p/ graficas: `mov ax,0x0013; int 0x10`, ES=0xA000,
+> `stosb`/`[es:di]`. `22` usa portas do DAC (`out`); `23` usa `int 15h`/86h p/ pausar.
 
 ## Arquivos da Fase 2
 
@@ -145,6 +148,7 @@ com **duas opcoes** (VirtualBox e QEMU), cada uma na ordem
 | `/api/arq/{q}` | versao **enxuta** (recomendada) |
 | `/req_full/{q}` | versao **extensa** |
 | `/dev` | **terminal falso** (cmd.exe) vazio: so o prompt com cursor piscando |
+| `/dev/all` | lista simples (estilo cmd) com links pra todas as questoes (`all` e id reservado) |
 | `/dev/{q}` | se `{q}` existe (assada **ou** cadastrada): terminal com o codigo. Se NAO existe: **formulario de cadastro** |
 | `/dev/{q}/full` | terminal falso com a versao **extensa** (so p/ as assadas) |
 | `POST /dev/{q}` | **salva** o codigo colado no KV (write-once) e mostra o terminal |
