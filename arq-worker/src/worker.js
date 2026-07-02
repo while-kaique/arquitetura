@@ -28,6 +28,80 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// ============ disponibilidade (planilha publica da turma, Google Sheets) ============
+// Planilha compartilhada como "qualquer um com o link: leitor" -> lida via export CSV
+// (gviz), sem chave/OAuth. Colunas: A=numero da questao, B=DISPONIBILIDADE.
+// B pode ser: "SELECIONADA" (nao pode cadastrar), um nome (marcada) ou algo com
+// "reserva" (reserva de alguem, texto livre). O ID da planilha NAO e segredo.
+const SHEET_ID = "1pAWwq5J6BtbijprP5d8fJPM7R5WyKXg3gaUcCF3SwLI";
+const SHEET_GID = "0";
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SHEET_GID}`;
+const SHEET_TTL_MS = 10000; // cache curto: "tempo real" na pratica, sem estourar a cota
+let _sheetCache = { t: 0, map: null };
+
+// CSV com campos entre aspas (aspas escapadas como "")
+function parseCSV(text) {
+  const rows = []; let row = [], field = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// baixa a planilha (com cache) -> { "<numero>": "<disponibilidade>" }. Fail-open.
+async function getDisponibilidade() {
+  const now = Date.now();
+  if (_sheetCache.map && now - _sheetCache.t < SHEET_TTL_MS) return _sheetCache.map;
+  try {
+    const res = await fetch(SHEET_URL, { cf: { cacheTtl: 5 } });
+    if (!res.ok) throw new Error("http " + res.status);
+    const rows = parseCSV(await res.text());
+    const map = {};
+    for (let i = 1; i < rows.length; i++) { // pula o cabecalho
+      const num = (rows[i][0] || "").trim();
+      if (num) map[num] = (rows[i][1] || "").trim();
+    }
+    _sheetCache = { t: now, map };
+    return map;
+  } catch (e) {
+    return _sheetCache.map || {}; // se falhar, usa o ultimo cache (ou vazio) e segue
+  }
+}
+
+// minusculo p/ comparar ("selecionada"/"reserva" nao tem acento, entao basta isso)
+function _norm(s) { return String(s == null ? "" : s).toLowerCase(); }
+
+// classifica a celula DISPONIBILIDADE -> {tipo, texto} ou null
+export function _classificar(disp) {
+  const raw = String(disp == null ? "" : disp).trim();
+  if (!raw) return null;
+  const n = _norm(raw);
+  if (n === "selecionada") return { tipo: "selecionada", texto: raw };
+  if (n.includes("reserva")) return { tipo: "reserva", texto: raw };
+  return { tipo: "marcada", texto: raw };
+}
+
+// overlay temporario (some em ~5s via JS, respeitando o disfarce de cmd)
+function tagHTML(cls) {
+  if (!cls) return "";
+  const label =
+    cls.tipo === "selecionada" ? "SELECIONADA · não disponível"
+    : cls.tipo === "reserva" ? "RESERVA · " + esc(cls.texto)
+    : "MARCADA · " + esc(cls.texto);
+  return `<div id="tagpop" class="tagpop tag-${cls.tipo}" role="status" aria-live="polite">${label}</div>` +
+    `<script>setTimeout(function(){var t=document.getElementById("tagpop");if(!t)return;` +
+    `t.style.transition="opacity .5s ease";t.style.opacity="0";` +
+    `setTimeout(function(){t.remove();},550);},4500);</script>`;
+}
+
 // ============================ pagina indice ============================
 function tabelaLinks() {
   let rows = "";
@@ -185,7 +259,15 @@ const CMDCSS =
   `#term{white-space:pre-wrap;overflow-wrap:break-word}` +
   `.chrome{-webkit-user-select:none;user-select:none}` +
   `::selection{background:#cccccc;color:#0c0c0c}` +
-  `::-moz-selection{background:#cccccc;color:#0c0c0c}`;
+  `::-moz-selection{background:#cccccc;color:#0c0c0c}` +
+  // tag temporaria de disponibilidade (some em ~5s p/ nao perder o disfarce de cmd)
+  `.tagpop{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;` +
+  `padding:9px 18px;border-radius:6px;font-weight:bold;font-size:15px;letter-spacing:.3px;` +
+  `box-shadow:0 6px 24px rgba(0,0,0,.55);-webkit-user-select:none;user-select:none;` +
+  `pointer-events:none;max-width:92vw;text-align:center}` +
+  `.tag-marcada{background:#4a3800;color:#ffe08a;border:1px solid #e5c07b}` +
+  `.tag-reserva{background:#08343f;color:#9fe0f0;border:1px solid #4fc3d9}` +
+  `.tag-selecionada{background:#4a1010;color:#ffb3b3;border:1px solid #f48771}`;
 
 const CMD_HEADER =
   "Microsoft Windows [versão 10.0.26200.6584]\n" +
@@ -194,7 +276,7 @@ const CMD_HEADER =
 // devPage(): IMITA o cmd.exe. Recebe o codigo cru (string) ou null (prompt vazio).
 // So a regiao do codigo e selecionavel; cabecalho/prompt tem user-select:none, entao
 // Ctrl+A -> Ctrl+C copia exatamente o assembly.
-function devPage(codigo) {
+function devPage(codigo, cls) {
   const norm = codigo != null
     ? esc(String(codigo).replace(/\r\n/g, "\n").replace(/\n+$/, ""))
     : null;
@@ -215,7 +297,7 @@ function devPage(codigo) {
     `-webkit-user-select:none;user-select:none}` +
     `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
     `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
-    `</style></head><body><div id="term">${corpo}</div></body></html>`;
+    `</style></head><body><div id="term">${corpo}</div>${tagHTML(cls)}</body></html>`;
 }
 
 // formPage(): tela (estilo cmd) pra cadastrar o codigo de uma questao ainda inexistente.
@@ -277,25 +359,46 @@ function formPage(n, opts) {
       ? `<label class="chk"><input type="checkbox" name="confirmar" value="1"> salvar assim mesmo (sei que pode faltar algo)</label>`
       : ``) +
     `<button type="submit">Salvar e abrir /dev/${esc(n)}</button>` +
-    `</form></div></div></body></html>`;
+    `</form></div></div>${tagHTML(opts.cls)}</body></html>`;
+}
+
+// blockPage(): cadastro barrado porque a questao esta SELECIONADA na planilha.
+function blockPage(n, cls) {
+  return `<!doctype html><html lang="pt-br"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>C:\\Windows\\System32\\cmd.exe</title>` +
+    `<style>` + CMDCSS +
+    `.code{-webkit-user-select:text;user-select:text}` +
+    `.caret{display:inline-block;width:.55em;height:1.05em;background:var(--fg);` +
+    `vertical-align:text-bottom;margin-left:1px;animation:cmdblink 1.06s steps(1,end) infinite}` +
+    `@keyframes cmdblink{0%,49%{opacity:1}50%,100%{opacity:0}}` +
+    `@media(prefers-reduced-motion:reduce){.caret{animation:none}}` +
+    `</style></head><body><div id="term">` +
+    `<span class="chrome">${esc(CMD_HEADER)}C:\\Users\\User&gt;copy con ${esc(n)}.asm\n` +
+    `Acesso negado. A questão "${esc(n)}" está marcada como SELECIONADA e não pode ser cadastrada.\n</span>` +
+    `<span class="caret" aria-hidden="true"></span></div>${tagHTML(cls)}</body></html>`;
 }
 
 // ============================ /dev handler ============================
 async function handleDev(request, parts, kv) {
   const n = parts[1] || null;
 
-  // /dev  -> prompt vazio piscando
-  if (!n) return new Response(devPage(null), { headers: HTM });
+  // /dev  -> prompt vazio piscando (nao precisa consultar a planilha)
+  if (!n) return new Response(devPage(null, null), { headers: HTM });
 
-  // questao assada (50/54/55): sempre vence, imutavel
+  // disponibilidade da planilha (tempo real, com cache curto; fail-open)
+  const dispMap = await getDisponibilidade();
+  const cls = _classificar(dispMap[n]);
+
+  // questao assada (50/54/55): sempre vence, imutavel — mostra o codigo + tag
   if (CODE[n]) {
     const variant = parts[2] === "full" ? "full" : "curto";
-    return new Response(devPage(CODE[n][variant]), { headers: HTM });
+    return new Response(devPage(CODE[n][variant], cls), { headers: HTM });
   }
 
   // id fora do padrao
   if (!ID_OK.test(n)) {
-    return new Response(devPage("; id invalido — use so letras, numeros, - ou _ (ate 40 caracteres)."),
+    return new Response(devPage("; id invalido — use so letras, numeros, - ou _ (ate 40 caracteres).", null),
       { status: 400, headers: HTM });
   }
 
@@ -308,17 +411,21 @@ async function handleDev(request, parts, kv) {
   if (request.method === "POST") {
     // WRITE-ONCE: se ja existe, ignora o envio e mostra o codigo que ja esta la
     if (existing && existing.value != null) {
-      return new Response(devPage(existing.value), { headers: HTM });
+      return new Response(devPage(existing.value, cls), { headers: HTM });
+    }
+    // BLOQUEIO: questao SELECIONADA na planilha nao pode ser cadastrada
+    if (cls && cls.tipo === "selecionada") {
+      return new Response(blockPage(n, cls), { status: 403, headers: HTM });
     }
     if (!kv) {
-      return new Response(devPage("; armazenamento indisponivel no momento — tente de novo mais tarde."),
+      return new Response(devPage("; armazenamento indisponivel no momento — tente de novo mais tarde.", null),
         { status: 503, headers: HTM });
     }
 
     let form;
     try { form = await request.formData(); } catch (e) { form = null; }
     if (!form) {
-      return new Response(formPage(n, { erro: "Envio inválido. Use o formulário para colar o código." }),
+      return new Response(formPage(n, { cls, erro: "Envio inválido. Use o formulário para colar o código." }),
         { headers: HTM });
     }
     const codigo = String(form.get("codigo") || "");
@@ -328,11 +435,11 @@ async function handleDev(request, parts, kv) {
     // validacao dura: vazio / tamanho
     const codeTrim = codigo.replace(/\r\n/g, "\n").replace(/\s+$/, "");
     if (!codeTrim.trim()) {
-      return new Response(formPage(n, { codigo, nome, erro: "Cole algum código antes de salvar." }),
+      return new Response(formPage(n, { cls, codigo, nome, erro: "Cole algum código antes de salvar." }),
         { headers: HTM });
     }
     if (codigo.length > MAX_BYTES) {
-      return new Response(formPage(n, { nome, erro: "Código grande demais (máximo 100 KB)." }),
+      return new Response(formPage(n, { cls, nome, erro: "Código grande demais (máximo 100 KB)." }),
         { headers: HTM });
     }
 
@@ -342,24 +449,29 @@ async function handleDev(request, parts, kv) {
     if (!low.includes("org 0x7c00")) faltas.push("org 0x7c00");
     if (!low.includes("0xaa")) faltas.push("db 0xaa (assinatura de boot)");
     if (faltas.length && !confirmar) {
-      return new Response(formPage(n, { codigo, nome, aviso: faltas }), { headers: HTM });
+      return new Response(formPage(n, { cls, codigo, nome, aviso: faltas }), { headers: HTM });
     }
 
     // salva (write-once) e mostra o codigo direto (nao depende da propagacao do KV)
     try {
       await kv.put(KV_PREFIX + n, codeTrim, { metadata: { nome: nome || ("Questão " + n) } });
     } catch (e) {
-      return new Response(formPage(n, { codigo, nome, erro: "Falha ao salvar. Tente de novo." }),
+      return new Response(formPage(n, { cls, codigo, nome, erro: "Falha ao salvar. Tente de novo." }),
         { headers: HTM });
     }
-    return new Response(devPage(codeTrim), { headers: HTM });
+    return new Response(devPage(codeTrim, cls), { headers: HTM });
   }
 
-  // GET: mostra o codigo se ja existe, senao o formulario de cadastro
+  // GET: mostra o codigo se ja existe
   if (existing && existing.value != null) {
-    return new Response(devPage(existing.value), { headers: HTM });
+    return new Response(devPage(existing.value, cls), { headers: HTM });
   }
-  return new Response(formPage(n, {}), { headers: HTM });
+  // GET de questao SELECIONADA (ainda sem codigo) -> barra o cadastro
+  if (cls && cls.tipo === "selecionada") {
+    return new Response(blockPage(n, cls), { status: 403, headers: HTM });
+  }
+  // senao, formulario de cadastro (com tag se for marcada/reserva)
+  return new Response(formPage(n, { cls }), { headers: HTM });
 }
 
 // ============================ pagina /help ============================
@@ -419,6 +531,16 @@ function help() {
     `<p><b>Regras do código:</b> deve ser um boot sector completo — começa com <code>org 0x7c00</code> e ` +
     `termina com <code>times 510-($-$$) db 0</code> / <code>db 0x55</code> / <code>db 0xaa</code>. ` +
     `Tamanho máximo 100 KB. Se faltar a assinatura de boot, o site <b>avisa</b> e pede confirmação antes de salvar.</p>` +
+
+    `<h2>Disponibilidade das questões (planilha da turma)</h2>` +
+    `<p>Ao abrir <code>/dev/{id}</code>, o site consulta a planilha da turma <b>em tempo real</b> e ` +
+    `mostra um aviso rápido (some em ~5s pra não atrapalhar):</p>` +
+    `<ul>` +
+    `<li><b>MARCADA · nome</b> — alguém já marcou essa questão como sua.</li>` +
+    `<li><b>RESERVA · ...</b> — é reserva de alguém (mostra o texto como está na planilha).</li>` +
+    `<li><b>SELECIONADA</b> — questão fora da prova: <b>não pode ser cadastrada</b> (o cadastro é barrado).</li>` +
+    `</ul>` +
+    `<p>Serve pra ninguém pegar uma questão que já é de outra pessoa (não pode repetir na prova).</p>` +
 
     `<h2>Bom saber</h2>` +
     `<ul>` +
