@@ -747,7 +747,8 @@ function help() {
     `<tr><td><a href="/dev">/dev</a></td><td>Uma tela que <b>imita o Prompt de Comando</b> (cmd), vazia — só o cursor piscando.</td></tr>` +
     `<tr><td><a href="/dev/all">/dev/all</a></td><td>Lista simples com links pra <b>todas as questões</b>.</td></tr>` +
     `<tr><td><code>/dev/{id}</code></td><td>Abre a questão <code>{id}</code> nessa tela de cmd. ` +
-    `Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
+    `<b>Role a página pra baixo</b>: tem o <b>passo a passo detalhado de como rodar</b> (QEMU e VirtualBox, ` +
+    `onde clicar). Se o <code>{id}</code> ainda <b>não existe</b>, mostra o formulário pra cadastrar.</td></tr>` +
     `<tr><td><code>/api/arq/{id}</code></td><td>O código em <b>texto puro</b> (versão enxuta), sem o visual de cmd.</td></tr>` +
     `<tr><td><code>/req_full/{id}</code></td><td>Texto puro da versão <b>extensa</b>/comentada (quando existe).</td></tr>` +
     `</tbody></table>` +
