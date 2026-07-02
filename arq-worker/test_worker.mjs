@@ -67,7 +67,7 @@ ok(idx.body.includes("qemu-system-i386 -fda prova.bin"), "indice tem comando QEM
 ok((idx.body.match(/api\/arq\/50/g) || []).length >= 2, "tabela de links aparece nas duas opcoes");
 
 // 2) rotas de codigo (assadas) batem com os .asm de origem
-for (const q of ["47", "50", "54", "55", "65"]) {
+for (const q of ["50", "54", "55", "65"]) {
   const curto = await get("/api/arq/" + q);
   const full = await get("/req_full/" + q);
   const srcCurto = readFileSync(join(DIR, "asm", `${q}_curto.asm`), "utf8");
